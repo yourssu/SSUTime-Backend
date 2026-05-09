@@ -1,0 +1,67 @@
+{
+  "family": "ssutime-api-dev",
+  "networkMode": "bridge",
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ssutime-api-task-role-dev",
+  "containerDefinitions": [
+    {
+      "name": "ssutime-api",
+      "image": "ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/ssutime-api:placeholder",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DATABASE_DRIVER",
+          "value": "com.mysql.cj.jdbc.Driver"
+        },
+        {
+          "name": "JWT_EXPIRY_MINUTES",
+          "value": "60"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/DATABASE_URL"
+        },
+        {
+          "name": "DATABASE_USERNAME",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/DATABASE_USERNAME"
+        },
+        {
+          "name": "DATABASE_PASSWORD",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/DATABASE_PASSWORD"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/JWT_SECRET"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/ANTHROPIC_API_KEY"
+        },
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+          "valueFrom": "arn:aws:ssm:ap-northeast-2:ACCOUNT_ID:parameter/ssutime/dev/GOOGLE_APPLICATION_CREDENTIALS_JSON"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ssutime-api-dev",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

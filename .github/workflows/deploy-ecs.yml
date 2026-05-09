@@ -1,0 +1,89 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  CONTAINER_NAME: ssutime-api
+
+jobs:
+  deploy:
+    name: Build, push, and deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set deployment target
+        id: target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "cluster=${{ secrets.ECS_CLUSTER_PROD }}" >> "$GITHUB_OUTPUT"
+            echo "service=${{ secrets.ECS_SERVICE_PROD }}" >> "$GITHUB_OUTPUT"
+            echo "task_definition=deploy/ecs-task-prod.json" >> "$GITHUB_OUTPUT"
+            echo "profile=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "cluster=${{ secrets.ECS_CLUSTER_DEV }}" >> "$GITHUB_OUTPUT"
+            echo "service=${{ secrets.ECS_SERVICE_DEV }}" >> "$GITHUB_OUTPUT"
+            echo "task_definition=deploy/ecs-task-dev.json" >> "$GITHUB_OUTPUT"
+            echo "profile=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Build and test
+        run: ./gradlew clean test bootJar
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Render ECS task definition
+        id: render-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.target.outputs.task_definition }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task.outputs.task-definition }}
+          cluster: ${{ steps.target.outputs.cluster }}
+          service: ${{ steps.target.outputs.service }}
+          wait-for-service-stability: true
