@@ -1,0 +1,101 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ECR_PUBLIC_REGION: us-east-1
+  ECR_PUBLIC_ALIAS: ${{ secrets.ECR_PUBLIC_ALIAS }}
+  ECR_PUBLIC_REPOSITORY: ${{ secrets.ECR_PUBLIC_REPOSITORY }}
+  CONTAINER_NAME: ssutime-api
+  CONTAINER_PORT: "8080"
+  HOST_PORT: "8080"
+  REMOTE_ENV_FILE: /opt/ssutime/.env
+
+jobs:
+  deploy:
+    name: Build, push, and deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    env:
+      EC2_HOST: ${{ github.ref_name == 'main' && secrets.EC2_HOST_PROD || secrets.EC2_HOST_DEV }}
+      EC2_USER: ${{ github.ref_name == 'main' && secrets.EC2_USER_PROD || secrets.EC2_USER_DEV }}
+      EC2_SSH_KEY: ${{ github.ref_name == 'main' && secrets.EC2_SSH_KEY_PROD || secrets.EC2_SSH_KEY_DEV }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Build and test
+        run: ./gradlew clean test bootJar
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.ECR_PUBLIC_REGION }}
+
+      - name: Login to Amazon ECR Public
+        id: login-ecr-public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build and push image
+        id: build-image
+        env:
+          IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+        run: |
+          IMAGE_URI="public.ecr.aws/${ECR_PUBLIC_ALIAS}/${ECR_PUBLIC_REPOSITORY}:${IMAGE_TAG}"
+          LATEST_URI="public.ecr.aws/${ECR_PUBLIC_ALIAS}/${ECR_PUBLIC_REPOSITORY}:${GITHUB_REF_NAME}-latest"
+          docker build -t "$IMAGE_URI" -t "$LATEST_URI" .
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+          echo "image=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on EC2
+        env:
+          IMAGE_URI: ${{ steps.build-image.outputs.image }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
+            "IMAGE_URI='${IMAGE_URI}' CONTAINER_NAME='${CONTAINER_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' HOST_PORT='${HOST_PORT}' REMOTE_ENV_FILE='${REMOTE_ENV_FILE}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          if [ ! -f "$REMOTE_ENV_FILE" ]; then
+            echo "Missing env file: $REMOTE_ENV_FILE" >&2
+            exit 1
+          fi
+
+          docker pull "$IMAGE_URI"
+          docker stop "$CONTAINER_NAME" 2>/dev/null || true
+          docker rm "$CONTAINER_NAME" 2>/dev/null || true
+          docker run -d \
+            --name "$CONTAINER_NAME" \
+            --restart unless-stopped \
+            --env-file "$REMOTE_ENV_FILE" \
+            -p "${HOST_PORT}:${CONTAINER_PORT}" \
+            "$IMAGE_URI"
+          docker image prune -f
+          EOF

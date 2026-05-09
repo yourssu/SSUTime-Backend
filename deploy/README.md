@@ -1,59 +1,104 @@
-# ECS 배포 설정
+# EC2 Docker 배포 설정
 
-이 배포 구성은 ECS on EC2 launch type 기준입니다.
+이 배포 구성은 GitHub Actions에서 Docker 이미지를 ECR Public Registry에 push한 뒤,
+브랜치별 EC2 서버에 SSH로 접속해 `docker pull` 후 컨테이너를 재기동하는 방식입니다.
 
-- `main` 브랜치: 운영 ECS 서비스 배포
-- `develop` 브랜치: 개발 ECS 서비스 배포
-- GitHub Actions: Gradle 테스트/빌드 -> Docker 이미지 빌드 -> ECR push -> ECS service update
+- `main` 브랜치: 운영 EC2 서버 배포
+- `develop` 브랜치: 개발 EC2 서버 배포
+- GitHub Actions: Gradle 테스트/빌드 -> Docker 이미지 빌드 -> ECR Public push -> EC2 docker pull/run
 
 ## GitHub Secrets
 
 Repository secrets 또는 GitHub Environments(`production`, `development`)에 아래 값을 설정하세요.
 
 ```text
-AWS_REGION=ap-northeast-2
 AWS_ROLE_TO_ASSUME=arn:aws:iam::<account-id>:role/<github-actions-deploy-role>
-ECR_REPOSITORY=ssutime-api
-ECS_CLUSTER_PROD=<prod-cluster-name>
-ECS_SERVICE_PROD=<prod-service-name>
-ECS_CLUSTER_DEV=<dev-cluster-name>
-ECS_SERVICE_DEV=<dev-service-name>
+ECR_PUBLIC_ALIAS=<ecr-public-alias>
+ECR_PUBLIC_REPOSITORY=ssutime-api
+
+EC2_HOST_PROD=<prod-ec2-public-ip-or-domain>
+EC2_USER_PROD=ubuntu
+EC2_SSH_KEY_PROD=<prod-private-key-pem>
+
+EC2_HOST_DEV=<dev-ec2-public-ip-or-domain>
+EC2_USER_DEV=ubuntu
+EC2_SSH_KEY_DEV=<dev-private-key-pem>
 ```
 
-## Task definition 수정
+`AWS_ROLE_TO_ASSUME`는 ECR Public에 push할 수 있어야 합니다.
 
-`deploy/ecs-task-dev.json`, `deploy/ecs-task-prod.json` 안의 `ACCOUNT_ID`, IAM role ARN, region, SSM parameter ARN을 실제 값으로 바꾸세요.
+## ECR Public Registry
 
-## SSM Parameter Store
-
-예시는 아래 경로를 사용합니다.
+ECR Public repository를 먼저 생성하세요.
 
 ```text
-/ssutime/dev/DATABASE_URL
-/ssutime/dev/DATABASE_USERNAME
-/ssutime/dev/DATABASE_PASSWORD
-/ssutime/dev/JWT_SECRET
-/ssutime/dev/ANTHROPIC_API_KEY
-/ssutime/dev/GOOGLE_APPLICATION_CREDENTIALS_JSON
-
-/ssutime/prod/DATABASE_URL
-/ssutime/prod/DATABASE_USERNAME
-/ssutime/prod/DATABASE_PASSWORD
-/ssutime/prod/JWT_SECRET
-/ssutime/prod/ANTHROPIC_API_KEY
-/ssutime/prod/GOOGLE_APPLICATION_CREDENTIALS_JSON
+public.ecr.aws/<ecr-public-alias>/ssutime-api
 ```
 
-`DATABASE_URL` 예시:
+workflow는 아래 두 태그를 push합니다.
 
 ```text
-jdbc:mysql://<rds-endpoint>:3306/ssutime?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+public.ecr.aws/<alias>/ssutime-api:<branch>-<commit-sha>
+public.ecr.aws/<alias>/ssutime-api:<branch>-latest
+```
+
+예:
+
+```text
+public.ecr.aws/abc1def2/ssutime-api:main-latest
+public.ecr.aws/abc1def2/ssutime-api:develop-latest
+```
+
+## EC2 서버 준비
+
+EC2에는 Docker가 설치되어 있어야 하고, GitHub Actions에서 접속할 SSH key가 등록되어 있어야 합니다.
+
+앱 환경변수 파일은 서버에 직접 만들어 둡니다.
+
+```bash
+sudo mkdir -p /opt/ssutime
+sudo vi /opt/ssutime/.env
+sudo chmod 600 /opt/ssutime/.env
+```
+
+`/opt/ssutime/.env` 예시:
+
+```text
+DATABASE_URL=jdbc:mysql://<rds-endpoint>:3306/ssutime?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+DATABASE_USERNAME=<mysql-user>
+DATABASE_PASSWORD=<mysql-password>
+DATABASE_DRIVER=com.mysql.cj.jdbc.Driver
+JWT_SECRET=<minimum-32-char-secret>
+JWT_EXPIRY_MINUTES=60
+ANTHROPIC_API_KEY=<anthropic-api-key>
+GOOGLE_APPLICATION_CREDENTIALS_JSON=<firebase-service-account-json>
+```
+
+보안 그룹에서 필요한 포트를 열어야 합니다.
+
+```text
+22: GitHub Actions runner에서 SSH 접속
+8080: 애플리케이션 직접 접근 또는 ALB/Nginx에서 내부 접근
 ```
 
 ## Firebase Admin SDK
 
-ECS에서는 `GOOGLE_APPLICATION_CREDENTIALS_JSON`에 Firebase service account JSON 전체를 SSM SecureString 또는 Secrets Manager secret으로 저장해 주입하세요.
+EC2에서는 `GOOGLE_APPLICATION_CREDENTIALS_JSON`에 Firebase service account JSON 전체를 환경변수로 주입합니다.
 
 로컬 실행에서는 기존처럼 `FCM_CREDENTIALS_PATH=/path/to/service-account.json`도 사용할 수 있습니다.
 
 서비스 계정 JSON은 이미지에 굽거나 git에 커밋하지 마세요.
+
+## 수동 배포 확인
+
+EC2에서 직접 확인할 때는 아래 형태로 실행할 수 있습니다.
+
+```bash
+docker pull public.ecr.aws/<alias>/ssutime-api:main-latest
+docker run -d \
+  --name ssutime-api \
+  --restart unless-stopped \
+  --env-file /opt/ssutime/.env \
+  -p 8080:8080 \
+  public.ecr.aws/<alias>/ssutime-api:main-latest
+```
