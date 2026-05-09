@@ -7,6 +7,7 @@ import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
 @Component
@@ -17,6 +18,7 @@ class NotificationScheduler(
     private val applicationEventPublisher: ApplicationEventPublisher,
 ) {
     @Scheduled(fixedRate = 60_000)
+    @Transactional(readOnly = true)
     fun checkDeadlines() {
         val pending = userTodoStatusRepository.findPendingNotifications(LocalDateTime.now())
         pending.forEach { status ->

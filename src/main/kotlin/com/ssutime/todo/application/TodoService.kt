@@ -45,5 +45,5 @@ class TodoService(
 
     @Transactional(readOnly = true)
     fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> =
-        userTodoStatusRepository.findAll().filter { it.userId == userId }
+        userTodoStatusRepository.findAllByUserId(userId)
 }

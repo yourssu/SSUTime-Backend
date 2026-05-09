@@ -11,6 +11,8 @@ interface UserTodoStatusRepository : JpaRepository<UserTodoStatus, Long> {
 
     fun findAllByTodo(todo: Todo): List<UserTodoStatus>
 
+    fun findAllByUserId(userId: Long): List<UserTodoStatus>
+
     @Query("SELECT u FROM UserTodoStatus u WHERE u.notifyAt <= :now AND u.notificationSent = false AND u.isCompleted = false")
     fun findPendingNotifications(now: LocalDateTime): List<UserTodoStatus>
 }
