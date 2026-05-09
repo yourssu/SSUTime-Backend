@@ -1,5 +1,7 @@
 package com.ssutime.todo
 
+import com.ssutime.auth.domain.User
+import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.todo.application.ReconcileService
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
@@ -24,12 +26,14 @@ import kotlin.test.assertEquals
 
 class ReconcileServiceTest {
 
+    private val userRepository: UserRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
     private val todoReportRepository: TodoReportRepository = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
 
     private val reconcileService = ReconcileService(
+        userRepository,
         todoRepository,
         todoReportRepository,
         userTodoStatusRepository,
@@ -37,7 +41,7 @@ class ReconcileServiceTest {
     )
 
     private val subjectId = 10L
-    private val materialCode = "MATERIAL_001"
+    private val materialCode = 100001L
     private val dueDate = LocalDateTime.now().plusDays(3)
     private val title = "Test Assignment"
 
@@ -106,6 +110,7 @@ class ReconcileServiceTest {
         val newDueDate = LocalDateTime.now().plusDays(5)
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, originalDueDate, title)
         val status = UserTodoStatus.create(1L, todo, 60)
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01", notificationThresholdMinutes = 60)
 
         val reports = listOf(
             TodoReport.create(1L, subjectId, materialCode, newDueDate, title),
@@ -116,6 +121,7 @@ class ReconcileServiceTest {
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns reports
         every { todoRepository.save(any()) } returns todo
         every { userTodoStatusRepository.findAllByTodo(todo) } returns listOf(status)
+        every { userRepository.findById(1L) } returns java.util.Optional.of(user)
         every { userTodoStatusRepository.save(status) } returns status
 
         reconcileService.onTodoReported(TodoReported(subjectId, materialCode, 1L))

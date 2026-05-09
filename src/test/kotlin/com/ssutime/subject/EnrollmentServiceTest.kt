@@ -25,7 +25,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `enroll - creates subject and enrollment when not existing`() {
-        val user = User(id = 1L, studentId = "20210001")
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val enrollment = Enrollment.create(user, subject)
         every { userRepository.findById(1L) } returns Optional.of(user)
@@ -42,7 +42,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `enroll - reuses existing subject`() {
-        val user = User(id = 1L, studentId = "20210001")
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val enrollment = Enrollment.create(user, subject)
         every { userRepository.findById(1L) } returns Optional.of(user)
@@ -58,7 +58,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `enroll - does not duplicate existing enrollment`() {
-        val user = User(id = 1L, studentId = "20210001")
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val existing = Enrollment(id = 5L, user = user, subject = subject)
         every { userRepository.findById(1L) } returns Optional.of(user)
@@ -72,7 +72,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `unenroll - removes enrollment`() {
-        val user = User(id = 1L, studentId = "20210001")
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val enrollment = Enrollment(id = 5L, user = user, subject = subject)
         every { enrollmentRepository.findById(5L) } returns Optional.of(enrollment)
@@ -94,7 +94,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `unenroll - throws when user does not own enrollment`() {
-        val owner = User(id = 2L, studentId = "20210002")
+        val owner = User(id = 2L, authKey = "auth-2L", maskedStudentId = "20****02")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val enrollment = Enrollment(id = 5L, user = owner, subject = subject)
         every { enrollmentRepository.findById(5L) } returns Optional.of(enrollment)
@@ -106,7 +106,7 @@ class EnrollmentServiceTest {
 
     @Test
     fun `getEnrollments - returns list of enrollment responses`() {
-        val user = User(id = 1L, studentId = "20210001")
+        val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01")
         val subject = Subject(id = 1L, courseId = 1001L, name = "데이터구조", semester = "2024-1")
         val enrollment = Enrollment(id = 5L, user = user, subject = subject)
         every { userRepository.findById(1L) } returns Optional.of(user)

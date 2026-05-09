@@ -19,7 +19,7 @@ class AISummaryServiceTest {
     private val aiSummaryService = AISummaryService(anthropicClient, todoRepository)
 
     private val dueDate = LocalDateTime.of(2026, 5, 15, 23, 59)
-    private val todo = Todo.create(10L, "MATERIAL_001", TodoType.ASSIGNMENT, dueDate, "운영체제 6장 과제")
+    private val todo = Todo.create(10L, 100001L, TodoType.ASSIGNMENT, dueDate, "운영체제 6장 과제")
 
     @Test
     fun `onTodoConfirmed - ASSIGNMENT 타입이면 AI 요약 생성 후 저장`() {

@@ -25,7 +25,7 @@ class Todo private constructor(
     val subjectId: Long,
 
     @Column(nullable = false)
-    val materialCode: String,
+    val materialCode: Long,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -66,12 +66,11 @@ class Todo private constructor(
     companion object {
         fun create(
             subjectId: Long,
-            materialCode: String,
+            materialCode: Long,
             type: TodoType,
             dueDate: LocalDateTime,
             title: String,
         ): Todo {
-            require(materialCode.isNotBlank()) { "materialCode must not be blank" }
             require(title.isNotBlank()) { "title must not be blank" }
             return Todo(
                 subjectId = subjectId,

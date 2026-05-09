@@ -23,6 +23,7 @@ class NotificationScheduler(
         val pending = userTodoStatusRepository.findPendingNotifications(LocalDateTime.now())
         pending.forEach { status ->
             val user = userRepository.findById(status.userId).orElse(null) ?: return@forEach
+            if (!user.notificationEnabled) return@forEach
             userDeviceRepository.findAllByUser(user).forEach { device ->
                 applicationEventPublisher.publishEvent(
                     DeadlineApproaching(

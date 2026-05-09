@@ -1,5 +1,7 @@
 package com.ssutime.todo
 
+import com.ssutime.auth.domain.User
+import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
@@ -24,12 +26,14 @@ import kotlin.test.assertNotNull
 
 class TodoServiceTest {
 
+    private val userRepository: UserRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
     private val todoReportRepository: TodoReportRepository = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
 
     private val todoService = TodoService(
+        userRepository,
         todoRepository,
         todoReportRepository,
         userTodoStatusRepository,
@@ -38,14 +42,20 @@ class TodoServiceTest {
 
     private val userId = 1L
     private val subjectId = 10L
-    private val materialCode = "MATERIAL_001"
+    private val materialCode = 100001L
     private val dueDate = LocalDateTime.now().plusDays(3)
     private val title = "Test Assignment"
     private val thresholdMinutes = 60
+    private val user = User(
+        id = userId,
+        authKey = "auth-1", maskedStudentId = "20****01",
+        notificationThresholdMinutes = thresholdMinutes,
+    )
 
     @BeforeEach
     fun setUp() {
         justRun { eventPublisher.publishEvent(any<TodoReported>()) }
+        every { userRepository.findById(userId) } returns java.util.Optional.of(user)
     }
 
     @Test
@@ -59,7 +69,7 @@ class TodoServiceTest {
         every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returns null
         every { userTodoStatusRepository.save(any()) } returns UserTodoStatus.create(userId, todo, thresholdMinutes)
 
-        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title, thresholdMinutes)
+        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
 
         verify { todoReportRepository.save(any()) }
         verify { todoRepository.save(any()) }
@@ -77,7 +87,7 @@ class TodoServiceTest {
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns existingTodo
         every { userTodoStatusRepository.findByUserIdAndTodo(userId, existingTodo) } returns existingStatus
 
-        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title, thresholdMinutes)
+        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
 
         verify { todoReportRepository.save(any()) }
         verify(exactly = 0) { todoRepository.save(any()) }
@@ -95,7 +105,7 @@ class TodoServiceTest {
         every { userTodoStatusRepository.findByUserIdAndTodo(userId, existingTodo) } returns null
         every { userTodoStatusRepository.save(any()) } returns UserTodoStatus.create(userId, existingTodo, thresholdMinutes)
 
-        todoService.processReport(userId, subjectId, materialCode, TodoType.VIDEO, dueDate, title, thresholdMinutes)
+        todoService.processReport(userId, subjectId, materialCode, TodoType.VIDEO, dueDate, title)
 
         verify { userTodoStatusRepository.save(any()) }
         verify { eventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId)) }
@@ -115,7 +125,7 @@ class TodoServiceTest {
         val eventSlot = slot<TodoReported>()
         justRun { eventPublisher.publishEvent(capture(eventSlot)) }
 
-        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title, thresholdMinutes)
+        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
 
         val capturedEvent = eventSlot.captured
         assertEquals(subjectId, capturedEvent.subjectId)
@@ -124,7 +134,7 @@ class TodoServiceTest {
     }
 
     @Test
-    fun `UserTodoStatus notifyAt은 dueDate에서 thresholdMinutes를 뺀 시각이어야 함`() {
+    fun `UserTodoStatus notifyAt은 dueDate에서 계정 알림 시간을 뺀 시각이어야 함`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
 

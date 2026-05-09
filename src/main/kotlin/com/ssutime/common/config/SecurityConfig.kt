@@ -21,7 +21,13 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers("/auth/callback", "/h2-console/**").permitAll()
+                    .requestMatchers(
+                        "/auth/tokens",
+                        "/h2-console/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                    ).permitAll()
                     .anyRequest().authenticated()
             }
             .headers { headers ->

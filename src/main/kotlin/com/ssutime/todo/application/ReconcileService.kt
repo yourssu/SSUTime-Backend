@@ -1,5 +1,6 @@
 package com.ssutime.todo.application
 
+import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.todo.domain.TodoStatus
 import com.ssutime.todo.domain.event.TodoConfirmed
 import com.ssutime.todo.domain.event.TodoReported
@@ -19,6 +20,7 @@ private const val RECONCILE_WINDOW_HOURS = 24L
 
 @Service
 class ReconcileService(
+    private val userRepository: UserRepository,
     private val todoRepository: TodoRepository,
     private val todoReportRepository: TodoReportRepository,
     private val userTodoStatusRepository: UserTodoStatusRepository,
@@ -52,7 +54,8 @@ class ReconcileService(
 
         if (dueDateChanged) {
             userTodoStatusRepository.findAllByTodo(todo).forEach { status ->
-                status.recalculateNotifyAt()
+                val user = userRepository.findById(status.userId).orElse(null) ?: return@forEach
+                status.recalculateNotifyAt(user.notificationThresholdMinutes)
                 userTodoStatusRepository.save(status)
             }
         }

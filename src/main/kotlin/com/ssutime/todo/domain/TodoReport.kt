@@ -19,7 +19,7 @@ class TodoReport private constructor(
     val subjectId: Long,
 
     @Column(nullable = false)
-    val materialCode: String,
+    val materialCode: Long,
 
     @Column(nullable = false)
     var dueDate: LocalDateTime,
@@ -39,11 +39,10 @@ class TodoReport private constructor(
         fun create(
             userId: Long,
             subjectId: Long,
-            materialCode: String,
+            materialCode: Long,
             dueDate: LocalDateTime,
             title: String,
         ): TodoReport {
-            require(materialCode.isNotBlank()) { "materialCode must not be blank" }
             require(title.isNotBlank()) { "title must not be blank" }
             return TodoReport(
                 userId = userId,

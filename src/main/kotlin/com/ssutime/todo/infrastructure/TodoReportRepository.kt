@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 interface TodoReportRepository : JpaRepository<TodoReport, Long> {
     fun findBySubjectIdAndMaterialCodeAndReportedAtAfter(
         subjectId: Long,
-        materialCode: String,
+        materialCode: Long,
         since: LocalDateTime,
     ): List<TodoReport>
 }

@@ -39,9 +39,6 @@ class UserTodoStatus private constructor(
     var completedAt: LocalDateTime? = null,
 
     @Column(nullable = false)
-    var thresholdMinutes: Int = 60,
-
-    @Column(nullable = false)
     var notifyAt: LocalDateTime,
 
     @Column(nullable = false)
@@ -55,8 +52,9 @@ class UserTodoStatus private constructor(
     @Version
     var version: Long = 0
 
-    fun recalculateNotifyAt() {
-        notifyAt = todo.dueDate - thresholdMinutes.minutes.toJavaDuration()
+    fun recalculateNotifyAt(notificationThresholdMinutes: Int) {
+        require(notificationThresholdMinutes >= 0) { "notificationThresholdMinutes must be non-negative" }
+        notifyAt = todo.dueDate - notificationThresholdMinutes.minutes.toJavaDuration()
     }
 
     fun markNotificationSent() {
@@ -69,13 +67,16 @@ class UserTodoStatus private constructor(
     }
 
     companion object {
-        fun create(userId: Long, todo: Todo, thresholdMinutes: Int = 60): UserTodoStatus {
-            require(thresholdMinutes >= 0) { "thresholdMinutes must be non-negative" }
+        fun create(
+            userId: Long,
+            todo: Todo,
+            notificationThresholdMinutes: Int,
+        ): UserTodoStatus {
+            require(notificationThresholdMinutes >= 0) { "notificationThresholdMinutes must be non-negative" }
             return UserTodoStatus(
                 userId = userId,
                 todo = todo,
-                thresholdMinutes = thresholdMinutes,
-                notifyAt = todo.dueDate - thresholdMinutes.minutes.toJavaDuration(),
+                notifyAt = todo.dueDate - notificationThresholdMinutes.minutes.toJavaDuration(),
             )
         }
     }

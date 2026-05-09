@@ -1,5 +1,7 @@
 package com.ssutime.todo.application
 
+import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoType
@@ -16,6 +18,7 @@ import java.time.LocalDateTime
 @Service
 @Transactional
 class TodoService(
+    private val userRepository: UserRepository,
     private val todoRepository: TodoRepository,
     private val todoReportRepository: TodoReportRepository,
     private val userTodoStatusRepository: UserTodoStatusRepository,
@@ -24,12 +27,14 @@ class TodoService(
     fun processReport(
         userId: Long,
         subjectId: Long,
-        materialCode: String,
+        materialCode: Long,
         type: TodoType,
         dueDate: LocalDateTime,
         title: String,
-        thresholdMinutes: Int = 60,
     ) {
+        val user = userRepository.findById(userId)
+            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+
         TodoReport.create(userId, subjectId, materialCode, dueDate, title)
             .let { todoReportRepository.save(it) }
 
@@ -37,8 +42,14 @@ class TodoService(
             ?: todoRepository.save(Todo.create(subjectId, materialCode, type, dueDate, title))
 
         userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
-            ?.apply { recalculateNotifyAt() }
-            ?: userTodoStatusRepository.save(UserTodoStatus.create(userId, todo, thresholdMinutes))
+            ?.apply { recalculateNotifyAt(user.notificationThresholdMinutes) }
+            ?: userTodoStatusRepository.save(
+                UserTodoStatus.create(
+                    userId = userId,
+                    todo = todo,
+                    notificationThresholdMinutes = user.notificationThresholdMinutes,
+                )
+            )
 
         applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
     }
