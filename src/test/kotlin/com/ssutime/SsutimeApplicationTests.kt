@@ -1,13 +1,10 @@
-package com.yourssu.ssutimev2
+package com.ssutime
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class SsutimeV2ApplicationTests {
-
+class SsutimeApplicationTests {
     @Test
-    fun contextLoads() {
-    }
-
+    fun contextLoads() {}
 }

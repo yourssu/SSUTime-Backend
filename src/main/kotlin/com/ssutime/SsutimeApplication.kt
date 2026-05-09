@@ -1,11 +1,11 @@
-package com.yourssu.ssutimev2
+package com.ssutime
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 @SpringBootApplication
-class SsutimeV2Application
+class SsutimeApplication
 
 fun main(args: Array<String>) {
-    runApplication<SsutimeV2Application>(*args)
+    runApplication<SsutimeApplication>(*args)
 }

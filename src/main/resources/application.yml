@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:mem:testdb;MODE=MySQL}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-minimum-32-chars-for-local}
+  expiry-minutes: ${JWT_EXPIRY_MINUTES:60}
+
+fcm:
+  credentials-path: ${FCM_CREDENTIALS_PATH:}
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+
+sso:
+  client-id: ${SSO_CLIENT_ID:}
+  client-secret: ${SSO_CLIENT_SECRET:}
+  redirect-uri: ${SSO_REDIRECT_URI:http://localhost:8080/auth/callback}
