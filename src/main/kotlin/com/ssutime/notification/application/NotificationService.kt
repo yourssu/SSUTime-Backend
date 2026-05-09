@@ -17,10 +17,9 @@ class NotificationService(
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onDeadlineApproaching(event: DeadlineApproaching) {
-        fcmClient.sendPush(
+        fcmClient.sendSilentPush(
             fcmToken = event.fcmToken,
-            title = "마감 임박",
-            body = "마감 ${event.dueDate}이 임박했습니다.",
+            data = mapOf("action" to "deadline_approaching", "todo_id" to event.todoId.toString())
         )
         markNotificationSent(event.userTodoStatusId)
     }
