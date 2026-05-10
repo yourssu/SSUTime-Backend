@@ -88,6 +88,7 @@ jobs:
             exit 1
           fi
 
+          docker logout public.ecr.aws 2>/dev/null || true
           docker pull "$IMAGE_URI"
           docker stop "$CONTAINER_NAME" 2>/dev/null || true
           docker rm "$CONTAINER_NAME" 2>/dev/null || true
