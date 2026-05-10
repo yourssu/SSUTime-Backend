@@ -78,8 +78,16 @@ GOOGLE_APPLICATION_CREDENTIALS_JSON=<firebase-service-account-json>
 
 ```text
 22: GitHub Actions runner에서 SSH 접속
-8080: 애플리케이션 직접 접근 또는 ALB/Nginx에서 내부 접근
+9090: 애플리케이션 직접 접근 또는 ALB/Nginx에서 내부 접근
 ```
+
+기본 Docker 포트 매핑은 아래와 같습니다.
+
+```text
+0.0.0.0:9090 -> container 8080
+```
+
+외부에 직접 열지 않고 EC2 내부에서만 프록시하려면 workflow의 `HOST_BIND_ADDRESS`를 `127.0.0.1`로 바꾸세요.
 
 ## Firebase Admin SDK
 
@@ -99,6 +107,6 @@ docker run -d \
   --name ssutime-api \
   --restart unless-stopped \
   --env-file /opt/ssutime/.env \
-  -p 8080:8080 \
+  -p 0.0.0.0:9090:8080 \
   public.ecr.aws/<alias>/ssutime-api:main-latest
 ```

@@ -17,7 +17,8 @@ env:
   ECR_PUBLIC_REPOSITORY: ${{ secrets.ECR_PUBLIC_REPOSITORY }}
   CONTAINER_NAME: ssutime-api
   CONTAINER_PORT: "8080"
-  HOST_PORT: "8080"
+  HOST_BIND_ADDRESS: "0.0.0.0"
+  HOST_PORT: "9090"
   REMOTE_ENV_FILE: /opt/ssutime/.env
 
 jobs:
@@ -91,7 +92,7 @@ jobs:
           IMAGE_URI: ${{ steps.image.outputs.image }}
         run: |
           ssh -i ~/.ssh/deploy_key "${EC2_USER}@${EC2_HOST}" \
-            "IMAGE_URI='${IMAGE_URI}' CONTAINER_NAME='${CONTAINER_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' HOST_PORT='${HOST_PORT}' REMOTE_ENV_FILE='${REMOTE_ENV_FILE}' bash -s" <<'EOF'
+            "IMAGE_URI='${IMAGE_URI}' CONTAINER_NAME='${CONTAINER_NAME}' CONTAINER_PORT='${CONTAINER_PORT}' HOST_BIND_ADDRESS='${HOST_BIND_ADDRESS}' HOST_PORT='${HOST_PORT}' REMOTE_ENV_FILE='${REMOTE_ENV_FILE}' bash -s" <<'EOF'
           set -euo pipefail
 
           if [ ! -f "$REMOTE_ENV_FILE" ]; then
@@ -107,7 +108,7 @@ jobs:
             --name "$CONTAINER_NAME" \
             --restart unless-stopped \
             --env-file "$REMOTE_ENV_FILE" \
-            -p "${HOST_PORT}:${CONTAINER_PORT}" \
+            -p "${HOST_BIND_ADDRESS}:${HOST_PORT}:${CONTAINER_PORT}" \
             "$IMAGE_URI"
           docker image prune -f
           EOF
