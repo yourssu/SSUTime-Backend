@@ -74,6 +74,8 @@ ANTHROPIC_API_KEY=<anthropic-api-key>
 GOOGLE_APPLICATION_CREDENTIALS_JSON=<firebase-service-account-json>
 ```
 
+Spring Boot는 컨테이너 내부에서 기본 포트 `8080`으로 실행됩니다. 외부 노출 포트는 Docker와 Nginx에서만 조정합니다.
+
 보안 그룹에서 필요한 포트를 열어야 합니다.
 
 ```text
