@@ -26,3 +26,6 @@ fcm:
 
 anthropic:
   api-key: ${ANTHROPIC_API_KEY:}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
