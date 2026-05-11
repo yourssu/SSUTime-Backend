@@ -1,3 +1,6 @@
+server:
+  forward-headers-strategy: native
+
 spring:
   datasource:
     url: ${DATABASE_URL:jdbc:h2:mem:testdb;MODE=MySQL}
