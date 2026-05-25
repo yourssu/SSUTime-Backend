@@ -72,6 +72,8 @@ JWT_SECRET=<minimum-32-char-secret>
 JWT_EXPIRY_MINUTES=60
 ANTHROPIC_API_KEY=<anthropic-api-key>
 GOOGLE_APPLICATION_CREDENTIALS_JSON=<firebase-service-account-json>
+# LMS 수집 silent push 주기(분). 운영 기본값은 15, 개발서버에서 1로 설정하면 매분 전체 대상에게 전송됩니다.
+CRAWL_TRIGGER_INTERVAL_MINUTES=15
 ```
 
 Spring Boot는 컨테이너 내부에서 기본 포트 `8080`으로 실행됩니다. 외부 노출 포트는 Docker와 Nginx에서만 조정합니다.
@@ -110,6 +112,19 @@ EC2에서는 `GOOGLE_APPLICATION_CREDENTIALS_JSON`에 Firebase service account J
 로컬 실행에서는 기존처럼 `FCM_CREDENTIALS_PATH=/path/to/service-account.json`도 사용할 수 있습니다.
 
 서비스 계정 JSON은 이미지에 굽거나 git에 커밋하지 마세요.
+
+## LMS 수집 트리거 주기
+
+앱은 매분 스케줄러를 실행하고, `CRAWL_TRIGGER_INTERVAL_MINUTES` 값으로 사용자 버킷을 나눠 silent push를 보냅니다.
+
+- 기본값: `15` — 사용자별 약 15분마다 1회 전송
+- 개발서버: `1` — 매분 전체 대상에게 전송
+
+개발서버에서 1분 단위로 테스트하려면 EC2의 `/opt/ssutime/.env`에 아래 값을 넣고 컨테이너를 재기동하세요.
+
+```text
+CRAWL_TRIGGER_INTERVAL_MINUTES=1
+```
 
 ## 수동 배포 확인
 
