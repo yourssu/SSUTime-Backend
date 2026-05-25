@@ -27,6 +27,10 @@ fcm:
   credentials-path: ${FCM_CREDENTIALS_PATH:}
   credentials-json: ${GOOGLE_APPLICATION_CREDENTIALS_JSON:}
 
+notification:
+  crawl-trigger:
+    interval-minutes: ${CRAWL_TRIGGER_INTERVAL_MINUTES:15}
+
 anthropic:
   api-key: ${ANTHROPIC_API_KEY:}
 
