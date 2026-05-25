@@ -1,5 +1,6 @@
 package com.ssutime.notification.infrastructure
 
+import com.google.firebase.messaging.FirebaseMessagingException
 import com.ssutime.auth.infrastructure.UserDeviceRepository
 import com.ssutime.auth.infrastructure.UserRepository
 import org.springframework.scheduling.annotation.Scheduled
@@ -19,7 +20,11 @@ class CrawlTriggerScheduler(
             .filter { it.id % 15 == bucket.toLong() }
             .forEach { user ->
                 userDeviceRepository.findAllByUser(user).forEach { device ->
-                    fcmClient.sendSilentPush(device.fcmToken, mapOf("action" to "crawl_lms"))
+                    try {
+                        fcmClient.sendSilentPush(device.fcmToken, mapOf("action" to "crawl_lms"))
+                    } catch (_: FirebaseMessagingException) {
+                        userDeviceRepository.delete(device)
+                    }
                 }
             }
     }
