@@ -17,33 +17,27 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "todo",
-    uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])]
+    uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])],
 )
 @DynamicUpdate
 class Todo private constructor(
     @Column(nullable = false)
     val subjectId: Long,
-
     @Column(nullable = false)
     val materialCode: Long,
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     val type: TodoType,
-
     @Column(nullable = false)
     var dueDate: LocalDateTime,
-
     @Column(nullable = false)
     var title: String,
-
     var aiSummary: String? = null,
-
+    var difficultyScore: Int? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: TodoStatus = TodoStatus.PROVISIONAL,
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0
@@ -61,6 +55,14 @@ class Todo private constructor(
 
     fun updateAiSummary(summary: String) {
         aiSummary = summary
+    }
+
+    fun updateAssignmentAnalysis(
+        summary: String,
+        difficultyScore: Int,
+    ) {
+        updateAiSummary(summary)
+        this.difficultyScore = difficultyScore.coerceIn(1, 5)
     }
 
     companion object {

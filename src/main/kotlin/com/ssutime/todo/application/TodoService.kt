@@ -31,30 +31,35 @@ class TodoService(
         type: TodoType,
         dueDate: LocalDateTime,
         title: String,
-    ) {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+    ): Todo {
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
 
-        TodoReport.create(userId, subjectId, materialCode, dueDate, title)
+        TodoReport
+            .create(userId, subjectId, materialCode, dueDate, title)
             .let { todoReportRepository.save(it) }
 
-        val todo = todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
-            ?: todoRepository.save(Todo.create(subjectId, materialCode, type, dueDate, title))
+        val todo =
+            todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
+                ?: todoRepository.save(Todo.create(subjectId, materialCode, type, dueDate, title))
 
-        userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
+        userTodoStatusRepository
+            .findByUserIdAndTodo(userId, todo)
             ?.apply { recalculateNotifyAt(user.notificationThresholdMinutes) }
             ?: userTodoStatusRepository.save(
                 UserTodoStatus.create(
                     userId = userId,
                     todo = todo,
                     notificationThresholdMinutes = user.notificationThresholdMinutes,
-                )
+                ),
             )
 
         applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
+        return todo
     }
 
     @Transactional(readOnly = true)
-    fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> =
-        userTodoStatusRepository.findAllByUserId(userId)
+    fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> = userTodoStatusRepository.findAllByUserId(userId)
 }
