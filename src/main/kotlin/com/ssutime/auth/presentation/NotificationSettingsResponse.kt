@@ -9,7 +9,6 @@ data class NotificationSettingsResponse(
         example = "true",
     )
     val notificationEnabled: Boolean,
-
     @field:Schema(
         description = "마감 몇 분 전에 알림을 보낼지 나타내는 계정 설정입니다.",
         example = "60",

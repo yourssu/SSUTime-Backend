@@ -18,11 +18,12 @@ class FcmConfig {
     ): FirebaseApp? {
         if (credentialsPath.isBlank() && credentialsJson.isBlank()) return null
         if (FirebaseApp.getApps().isNotEmpty()) return FirebaseApp.getInstance()
-        val credentials = if (credentialsJson.isNotBlank()) {
-            GoogleCredentials.fromStream(ByteArrayInputStream(credentialsJson.toByteArray()))
-        } else {
-            GoogleCredentials.fromStream(FileInputStream(credentialsPath))
-        }
+        val credentials =
+            if (credentialsJson.isNotBlank()) {
+                GoogleCredentials.fromStream(ByteArrayInputStream(credentialsJson.toByteArray()))
+            } else {
+                GoogleCredentials.fromStream(FileInputStream(credentialsPath))
+            }
         val options = FirebaseOptions.builder().setCredentials(credentials).build()
         return FirebaseApp.initializeApp(options)
     }

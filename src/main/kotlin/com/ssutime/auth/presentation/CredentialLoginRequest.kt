@@ -11,7 +11,6 @@ data class CredentialLoginRequest(
         maxLength = 8,
     )
     val id: String,
-
     @field:Schema(
         description = "사용자가 입력한 비밀번호입니다. 서버에는 원문 값이 저장되지 않습니다.",
         example = "password-from-client",

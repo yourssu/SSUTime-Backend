@@ -12,11 +12,12 @@ class FcmClientTest {
     fun `sendDryRunToTopic - reports missing firebase configuration`() {
         FirebaseApp.getApps().forEach { it.delete() }
 
-        val result = fcmClient.sendDryRunToTopic(
-            topic = "ssutime-dry-run",
-            title = "FCM dry run",
-            body = "test",
-        )
+        val result =
+            fcmClient.sendDryRunToTopic(
+                topic = "ssutime-dry-run",
+                title = "FCM dry run",
+                body = "test",
+            )
 
         assertEquals(false, result.configured)
         assertEquals(false, result.success)

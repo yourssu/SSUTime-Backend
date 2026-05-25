@@ -22,7 +22,7 @@ class FcmDryRunController(
     @PostMapping("/test-fcm")
     @Operation(
         summary = "FCM 메시지 dry-run 테스트",
-        description = "실제 푸시를 전달하지 않고 Firebase Admin SDK 인증 정보와 메시지 형식만 검증합니다. 요청한 topic을 대상으로 title/body를 가진 dry-run 알림 메시지를 보냅니다. 실제 마감 알림은 title '마감 임박', body '마감 {dueDate}이 임박했습니다.' 형식으로 발송됩니다. LMS 크롤링 트리거용 silent push는 data-only payload { action: 'crawl_lms' } 형식으로 발송됩니다.",
+        description = "실제 푸시 없이 Firebase 인증과 메시지 형식을 검증합니다. 실제 마감 알림은 title/body 형식으로 발송됩니다.",
     )
     fun testFcm(
         @Parameter(hidden = true)
@@ -42,10 +42,8 @@ class FcmDryRunController(
 data class FcmDryRunRequest(
     @field:Schema(description = "dry-run 대상 형식을 검증하기 위해 사용하는 FCM topic입니다.", example = "ssutime-dry-run")
     val topic: String = "ssutime-dry-run",
-
     @field:Schema(description = "dry-run 메시지에서 검증할 알림 제목입니다.", example = "FCM dry run")
     val title: String = "FCM dry run",
-
     @field:Schema(description = "dry-run 메시지에서 검증할 알림 본문입니다.", example = "SSUTime FCM configuration test")
     val body: String = "SSUTime FCM configuration test",
 )

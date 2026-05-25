@@ -42,9 +42,10 @@ class User(
         fun create(
             authKey: String,
             maskedStudentId: String,
-        ): User = User(
-            authKey = authKey,
-            maskedStudentId = maskedStudentId,
-        )
+        ): User =
+            User(
+                authKey = authKey,
+                maskedStudentId = maskedStudentId,
+            )
     }
 }

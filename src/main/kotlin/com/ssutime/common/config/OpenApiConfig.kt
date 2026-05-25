@@ -18,8 +18,7 @@ class OpenApiConfig {
                     .title("SSUTime API")
                     .description("SSUTime v2 API 문서")
                     .version("v1"),
-            )
-            .components(
+            ).components(
                 Components().addSecuritySchemes(
                     BEARER_AUTH,
                     SecurityScheme()
@@ -27,8 +26,7 @@ class OpenApiConfig {
                         .scheme("bearer")
                         .bearerFormat("JWT"),
                 ),
-            )
-            .addSecurityItem(SecurityRequirement().addList(BEARER_AUTH))
+            ).addSecurityItem(SecurityRequirement().addList(BEARER_AUTH))
 
     companion object {
         private const val BEARER_AUTH = "bearerAuth"

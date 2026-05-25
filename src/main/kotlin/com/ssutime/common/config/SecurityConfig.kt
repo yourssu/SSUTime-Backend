@@ -34,12 +34,11 @@ class SecurityConfig(
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                     ).permitAll()
-                    .anyRequest().authenticated()
-            }
-            .headers { headers ->
+                    .anyRequest()
+                    .authenticated()
+            }.headers { headers ->
                 headers.frameOptions { it.disable() }
-            }
-            .addFilterBefore(
+            }.addFilterBefore(
                 JwtAuthenticationFilter(jwtTokenProvider),
                 UsernamePasswordAuthenticationFilter::class.java,
             )

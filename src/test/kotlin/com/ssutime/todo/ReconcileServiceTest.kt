@@ -25,20 +25,20 @@ import java.time.LocalDateTime
 import kotlin.test.assertEquals
 
 class ReconcileServiceTest {
-
     private val userRepository: UserRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
     private val todoReportRepository: TodoReportRepository = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
 
-    private val reconcileService = ReconcileService(
-        userRepository,
-        todoRepository,
-        todoReportRepository,
-        userTodoStatusRepository,
-        eventPublisher,
-    )
+    private val reconcileService =
+        ReconcileService(
+            userRepository,
+            todoRepository,
+            todoReportRepository,
+            userTodoStatusRepository,
+            eventPublisher,
+        )
 
     private val subjectId = 10L
     private val materialCode = 100001L
@@ -53,9 +53,10 @@ class ReconcileServiceTest {
     @Test
     fun `quorum 미달 시 CONFIRMED 전이 없음`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
-        val singleReport = listOf(
-            TodoReport.create(1L, subjectId, materialCode, dueDate, title)
-        )
+        val singleReport =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+            )
 
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns singleReport
@@ -70,10 +71,11 @@ class ReconcileServiceTest {
     @Test
     fun `quorum 충족 시 PROVISIONAL에서 CONFIRMED로 전이`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
-        val reports = listOf(
-            TodoReport.create(1L, subjectId, materialCode, dueDate, title),
-            TodoReport.create(2L, subjectId, materialCode, dueDate, title),
-        )
+        val reports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+                TodoReport.create(2L, subjectId, materialCode, dueDate, title),
+            )
 
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns reports
@@ -89,10 +91,11 @@ class ReconcileServiceTest {
     @Test
     fun `이미 CONFIRMED인 경우 이벤트 재발행 없음`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title).apply { confirm() }
-        val reports = listOf(
-            TodoReport.create(1L, subjectId, materialCode, dueDate, title),
-            TodoReport.create(2L, subjectId, materialCode, dueDate, title),
-        )
+        val reports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+                TodoReport.create(2L, subjectId, materialCode, dueDate, title),
+            )
 
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns reports
@@ -112,10 +115,11 @@ class ReconcileServiceTest {
         val status = UserTodoStatus.create(1L, todo, 60)
         val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01", notificationThresholdMinutes = 60)
 
-        val reports = listOf(
-            TodoReport.create(1L, subjectId, materialCode, newDueDate, title),
-            TodoReport.create(2L, subjectId, materialCode, newDueDate, title),
-        )
+        val reports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, newDueDate, title),
+                TodoReport.create(2L, subjectId, materialCode, newDueDate, title),
+            )
 
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns reports
@@ -144,10 +148,11 @@ class ReconcileServiceTest {
     @Test
     fun `TodoConfirmed 이벤트가 올바른 값으로 발행됨`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
-        val reports = listOf(
-            TodoReport.create(1L, subjectId, materialCode, dueDate, title),
-            TodoReport.create(2L, subjectId, materialCode, dueDate, title),
-        )
+        val reports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+                TodoReport.create(2L, subjectId, materialCode, dueDate, title),
+            )
 
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
         every { todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(subjectId, materialCode, any()) } returns reports

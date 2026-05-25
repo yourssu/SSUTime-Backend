@@ -170,13 +170,14 @@ class AuthServiceTest {
 
     @Test
     fun `getNotificationSettings - returns account notification threshold`() {
-        val user = User(
-            id = 1L,
-            authKey = "auth-1",
-            maskedStudentId = "20****01",
-            notificationEnabled = false,
-            notificationThresholdMinutes = 30,
-        )
+        val user =
+            User(
+                id = 1L,
+                authKey = "auth-1",
+                maskedStudentId = "20****01",
+                notificationEnabled = false,
+                notificationThresholdMinutes = 30,
+            )
         every { userRepository.findById(1L) } returns Optional.of(user)
 
         val response = authService.getNotificationSettings(1L)
@@ -188,24 +189,26 @@ class AuthServiceTest {
     @Test
     fun `updateNotificationSettings - updates account notification threshold`() {
         val user = User(id = 1L, authKey = "auth-1", maskedStudentId = "20****01")
-        val todo = Todo.create(
-            subjectId = 10L,
-            materialCode = 100001L,
-            type = TodoType.ASSIGNMENT,
-            dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
-            title = "테스트 과제",
-        )
+        val todo =
+            Todo.create(
+                subjectId = 10L,
+                materialCode = 100001L,
+                type = TodoType.ASSIGNMENT,
+                dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
+                title = "테스트 과제",
+            )
         val status = UserTodoStatus.create(1L, todo, 60)
         every { userRepository.findById(1L) } returns Optional.of(user)
         every { userRepository.save(user) } returns user
         every { userTodoStatusRepository.findAllByUserId(1L) } returns listOf(status)
         every { userTodoStatusRepository.save(status) } returns status
 
-        val response = authService.updateNotificationSettings(
-            userId = 1L,
-            notificationEnabled = false,
-            notificationThresholdMinutes = 120,
-        )
+        val response =
+            authService.updateNotificationSettings(
+                userId = 1L,
+                notificationEnabled = false,
+                notificationThresholdMinutes = 120,
+            )
 
         assertEquals(false, response.notificationEnabled)
         assertEquals(120, response.notificationThresholdMinutes)

@@ -32,7 +32,7 @@ class NotificationScheduler(
                         todoId = status.todo.id,
                         fcmToken = device.fcmToken,
                         dueDate = status.todo.dueDate,
-                    )
+                    ),
                 )
             }
         }

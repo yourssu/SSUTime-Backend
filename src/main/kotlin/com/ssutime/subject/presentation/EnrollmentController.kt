@@ -28,8 +28,7 @@ class EnrollmentController(
     fun getEnrollments(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
-    ): ResponseEntity<List<EnrollmentResponse>> =
-        ResponseEntity.ok(enrollmentService.getEnrollments(userId))
+    ): ResponseEntity<List<EnrollmentResponse>> = ResponseEntity.ok(enrollmentService.getEnrollments(userId))
 
     @PostMapping
     @Operation(

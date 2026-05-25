@@ -22,29 +22,23 @@ import kotlin.time.toJavaDuration
 @Table(
     name = "user_todo_status",
     uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "todo_id"])],
-    indexes = [Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent")]
+    indexes = [Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent")],
 )
 @DynamicUpdate
 class UserTodoStatus private constructor(
     @Column(nullable = false)
     val userId: Long,
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "todo_id", nullable = false)
     val todo: Todo,
-
     @Column(nullable = false)
     var isCompleted: Boolean = false,
-
     var completedAt: LocalDateTime? = null,
-
     @Column(nullable = false)
     var notifyAt: LocalDateTime,
-
     @Column(nullable = false)
     var notificationSent: Boolean = false,
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0

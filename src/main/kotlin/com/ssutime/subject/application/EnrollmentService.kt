@@ -24,10 +24,13 @@ class EnrollmentService(
         name: String,
         semester: String,
     ) {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
-        val subject = subjectRepository.findByCourseId(courseId)
-            ?: subjectRepository.save(Subject.create(courseId, name, semester))
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val subject =
+            subjectRepository.findByCourseId(courseId)
+                ?: subjectRepository.save(Subject.create(courseId, name, semester))
         enrollmentRepository.findByUserAndSubject(user, subject)
             ?: enrollmentRepository.save(Enrollment.create(user, subject))
     }
@@ -36,8 +39,10 @@ class EnrollmentService(
         userId: Long,
         enrollmentId: Long,
     ) {
-        val enrollment = enrollmentRepository.findById(enrollmentId)
-            .orElseThrow { ResourceNotFoundException("Enrollment not found: $enrollmentId") }
+        val enrollment =
+            enrollmentRepository
+                .findById(enrollmentId)
+                .orElseThrow { ResourceNotFoundException("Enrollment not found: $enrollmentId") }
         if (enrollment.user.id != userId) {
             throw UnauthorizedException("Not your enrollment")
         }
@@ -46,8 +51,10 @@ class EnrollmentService(
 
     @Transactional(readOnly = true)
     fun getEnrollments(userId: Long): List<EnrollmentResponse> {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
         return enrollmentRepository.findAllByUser(user).map { enrollment ->
             EnrollmentResponse(
                 enrollmentId = enrollment.id,

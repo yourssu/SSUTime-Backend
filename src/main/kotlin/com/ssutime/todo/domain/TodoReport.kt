@@ -14,23 +14,17 @@ import java.time.LocalDateTime
 class TodoReport private constructor(
     @Column(nullable = false)
     val userId: Long,
-
     @Column(nullable = false)
     val subjectId: Long,
-
     @Column(nullable = false)
     val materialCode: Long,
-
     @Column(nullable = false)
     var dueDate: LocalDateTime,
-
     @Column(nullable = false)
     var title: String,
-
     @Column(nullable = false)
     val reportedAt: LocalDateTime = LocalDateTime.now(),
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0

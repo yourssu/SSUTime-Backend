@@ -26,13 +26,14 @@ class AuthService(
         authKey: String,
         maskedStudentId: String,
     ): TokenResponse {
-        val user = userRepository.findByAuthKey(authKey)
-            ?: userRepository.save(
-                User.create(
-                    authKey = authKey,
-                    maskedStudentId = maskedStudentId,
+        val user =
+            userRepository.findByAuthKey(authKey)
+                ?: userRepository.save(
+                    User.create(
+                        authKey = authKey,
+                        maskedStudentId = maskedStudentId,
+                    ),
                 )
-            )
         return TokenResponse(jwtTokenProvider.generateToken(user.id))
     }
 
@@ -58,16 +59,20 @@ class AuthService(
         userId: Long,
         fcmToken: String,
     ) {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
         userDeviceRepository.findByUserAndFcmToken(user, fcmToken)
             ?: userDeviceRepository.save(UserDevice.create(user, fcmToken))
     }
 
     @Transactional(readOnly = true)
     fun getNotificationSettings(userId: Long): NotificationSettingsResponse {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
         return NotificationSettingsResponse(
             notificationEnabled = user.notificationEnabled,
             notificationThresholdMinutes = user.notificationThresholdMinutes,
@@ -79,8 +84,10 @@ class AuthService(
         notificationEnabled: Boolean,
         notificationThresholdMinutes: Int,
     ): NotificationSettingsResponse {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
         user.updateNotificationSettings(
             enabled = notificationEnabled,
             thresholdMinutes = notificationThresholdMinutes,
@@ -105,8 +112,7 @@ class AuthService(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private fun String.maskStudentId(): String =
-        replaceRange(2, 6, "****")
+    private fun String.maskStudentId(): String = replaceRange(2, 6, "****")
 
     companion object {
         private val STUDENT_ID_PATTERN = Regex("\\d{8}")

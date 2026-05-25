@@ -19,7 +19,8 @@ class CrawlTriggerScheduler(
     @Scheduled(fixedRate = 60_000)
     fun triggerCrawl() {
         val epochMinute = Instant.now().epochSecond / 60
-        userRepository.findAll()
+        userRepository
+            .findAll()
             .filter { shouldTriggerCrawlForUser(it.id, crawlTriggerIntervalMinutes, epochMinute) }
             .forEach { user ->
                 userDeviceRepository.findAllByUser(user).forEach { device ->

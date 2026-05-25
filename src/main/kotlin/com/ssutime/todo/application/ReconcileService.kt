@@ -29,20 +29,32 @@ class ReconcileService(
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun onTodoReported(event: TodoReported) {
-        val todo = todoRepository.findBySubjectIdAndMaterialCode(event.subjectId, event.materialCode)
-            ?: return
+        val todo =
+            todoRepository.findBySubjectIdAndMaterialCode(event.subjectId, event.materialCode)
+                ?: return
 
         val since = LocalDateTime.now().minusHours(RECONCILE_WINDOW_HOURS)
-        val reports = todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(
-            event.subjectId, event.materialCode, since
-        )
+        val reports =
+            todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(
+                event.subjectId,
+                event.materialCode,
+                since,
+            )
 
         if (reports.size < QUORUM_SIZE) return
 
-        val majorityDueDate = reports.groupingBy { it.dueDate }.eachCount()
-            .maxByOrNull { it.value }?.key ?: return
-        val majorityTitle = reports.groupingBy { it.title }.eachCount()
-            .maxByOrNull { it.value }?.key ?: return
+        val majorityDueDate =
+            reports
+                .groupingBy { it.dueDate }
+                .eachCount()
+                .maxByOrNull { it.value }
+                ?.key ?: return
+        val majorityTitle =
+            reports
+                .groupingBy { it.title }
+                .eachCount()
+                .maxByOrNull { it.value }
+                ?.key ?: return
 
         val dueDateChanged = todo.dueDate != majorityDueDate
         val wasProvisional = todo.status == TodoStatus.PROVISIONAL
@@ -69,7 +81,7 @@ class ReconcileService(
                     type = todo.type,
                     title = todo.title,
                     dueDate = todo.dueDate,
-                )
+                ),
             )
         } else {
             todoRepository.save(todo)

@@ -16,7 +16,8 @@ class SwaggerSecurityTest {
 
     @Test
     fun `swagger ui is accessible without authentication`() {
-        mockMvc.get("/swagger-ui/index.html")
+        mockMvc
+            .get("/swagger-ui/index.html")
             .andExpect {
                 status { isOk() }
             }
@@ -24,7 +25,8 @@ class SwaggerSecurityTest {
 
     @Test
     fun `openapi docs are accessible without authentication`() {
-        mockMvc.get("/v3/api-docs")
+        mockMvc
+            .get("/v3/api-docs")
             .andExpect {
                 status { isOk() }
                 jsonPath("$.info.title") { value("SSUTime API") }
@@ -38,12 +40,13 @@ class SwaggerSecurityTest {
 
     @Test
     fun `token endpoint is accessible without authentication`() {
-        mockMvc.post("/auth/tokens") {
-            contentType = org.springframework.http.MediaType.APPLICATION_JSON
-            content = """{"id":"20210001","password":"password-from-client"}"""
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.accessToken") { exists() }
-        }
+        mockMvc
+            .post("/auth/tokens") {
+                contentType = org.springframework.http.MediaType.APPLICATION_JSON
+                content = """{"id":"20210001","password":"password-from-client"}"""
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.accessToken") { exists() }
+            }
     }
 }

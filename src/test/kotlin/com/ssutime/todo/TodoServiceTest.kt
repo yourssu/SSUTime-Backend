@@ -5,7 +5,6 @@ import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
-import com.ssutime.todo.domain.TodoStatus
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.domain.UserTodoStatus
 import com.ssutime.todo.domain.event.TodoReported
@@ -22,23 +21,22 @@ import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDateTime
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 class TodoServiceTest {
-
     private val userRepository: UserRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
     private val todoReportRepository: TodoReportRepository = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
 
-    private val todoService = TodoService(
-        userRepository,
-        todoRepository,
-        todoReportRepository,
-        userTodoStatusRepository,
-        eventPublisher,
-    )
+    private val todoService =
+        TodoService(
+            userRepository,
+            todoRepository,
+            todoReportRepository,
+            userTodoStatusRepository,
+            eventPublisher,
+        )
 
     private val userId = 1L
     private val subjectId = 10L
@@ -46,11 +44,13 @@ class TodoServiceTest {
     private val dueDate = LocalDateTime.now().plusDays(3)
     private val title = "Test Assignment"
     private val thresholdMinutes = 60
-    private val user = User(
-        id = userId,
-        authKey = "auth-1", maskedStudentId = "20****01",
-        notificationThresholdMinutes = thresholdMinutes,
-    )
+    private val user =
+        User(
+            id = userId,
+            authKey = "auth-1",
+            maskedStudentId = "20****01",
+            notificationThresholdMinutes = thresholdMinutes,
+        )
 
     @BeforeEach
     fun setUp() {

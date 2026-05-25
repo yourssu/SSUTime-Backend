@@ -22,12 +22,11 @@ class AuthController(
     @PostMapping("/tokens")
     @Operation(
         summary = "학번/비밀번호로 JWT 발급",
-        description = "8자리 학번과 비밀번호를 받아 JWT를 발급합니다. 서버는 원문 학번과 비밀번호를 저장하지 않고, 두 값을 조합한 단방향 해시만 사용자 인증키로 저장합니다. 표시용 학번은 가운데 4자리를 마스킹한 값만 저장합니다.",
+        description = "8자리 학번과 비밀번호로 JWT를 발급합니다. 원문 인증정보는 저장하지 않고 단방향 해시와 마스킹 학번만 저장합니다.",
     )
     fun issueToken(
         @RequestBody request: CredentialLoginRequest,
-    ): ResponseEntity<TokenResponse> =
-        ResponseEntity.ok(authService.loginWithCredentials(request.id, request.password))
+    ): ResponseEntity<TokenResponse> = ResponseEntity.ok(authService.loginWithCredentials(request.id, request.password))
 
     @PostMapping("/devices")
     @Operation(
@@ -46,18 +45,17 @@ class AuthController(
     @GetMapping("/notification-settings")
     @Operation(
         summary = "알림 설정 조회",
-        description = "인증된 계정의 마감 알림 설정을 조회합니다. notificationEnabled가 false이면 마감 알림을 발송하지 않습니다. notificationThresholdMinutes는 모든 할 일의 알림 예정 시각 계산에 공통으로 사용됩니다.",
+        description = "인증된 계정의 마감 알림 설정을 조회합니다. notificationThresholdMinutes는 할 일 알림 예정 시각 계산에 사용됩니다.",
     )
     fun getNotificationSettings(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
-    ): ResponseEntity<NotificationSettingsResponse> =
-        ResponseEntity.ok(authService.getNotificationSettings(userId))
+    ): ResponseEntity<NotificationSettingsResponse> = ResponseEntity.ok(authService.getNotificationSettings(userId))
 
     @PutMapping("/notification-settings")
     @Operation(
         summary = "알림 설정 변경",
-        description = "인증된 계정의 마감 알림 사용 여부와 알림 시간을 변경합니다. 이후 생성되거나 갱신되는 사용자 할 일의 notifyAt은 dueDate에서 notificationThresholdMinutes를 뺀 시각으로 계산됩니다.",
+        description = "마감 알림 사용 여부와 알림 시간을 변경합니다. 사용자 할 일의 notifyAt은 dueDate에서 설정 시간을 빼서 계산합니다.",
     )
     fun updateNotificationSettings(
         @Parameter(hidden = true)
@@ -69,6 +67,6 @@ class AuthController(
                 userId = userId,
                 notificationEnabled = request.notificationEnabled,
                 notificationThresholdMinutes = request.notificationThresholdMinutes,
-            )
+            ),
         )
 }

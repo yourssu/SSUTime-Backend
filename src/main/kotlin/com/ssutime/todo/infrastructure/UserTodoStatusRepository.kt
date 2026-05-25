@@ -7,7 +7,10 @@ import org.springframework.data.jpa.repository.Query
 import java.time.LocalDateTime
 
 interface UserTodoStatusRepository : JpaRepository<UserTodoStatus, Long> {
-    fun findByUserIdAndTodo(userId: Long, todo: Todo): UserTodoStatus?
+    fun findByUserIdAndTodo(
+        userId: Long,
+        todo: Todo,
+    ): UserTodoStatus?
 
     fun findAllByTodo(todo: Todo): List<UserTodoStatus>
 

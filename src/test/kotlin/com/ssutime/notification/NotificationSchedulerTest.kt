@@ -24,23 +24,25 @@ class NotificationSchedulerTest {
     private val userRepository: UserRepository = mockk()
     private val userDeviceRepository: UserDeviceRepository = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
-    private val scheduler = NotificationScheduler(
-        userTodoStatusRepository,
-        userRepository,
-        userDeviceRepository,
-        eventPublisher,
-    )
+    private val scheduler =
+        NotificationScheduler(
+            userTodoStatusRepository,
+            userRepository,
+            userDeviceRepository,
+            eventPublisher,
+        )
 
     @Test
     fun `checkDeadlines - 알림이 꺼진 계정은 이벤트를 발행하지 않음`() {
         val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01", notificationEnabled = false)
-        val todo = Todo.create(
-            subjectId = 10L,
-            materialCode = 100001L,
-            type = TodoType.ASSIGNMENT,
-            dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
-            title = "테스트 과제",
-        )
+        val todo =
+            Todo.create(
+                subjectId = 10L,
+                materialCode = 100001L,
+                type = TodoType.ASSIGNMENT,
+                dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
+                title = "테스트 과제",
+            )
         val status = UserTodoStatus.create(user.id, todo, 60)
 
         every { userTodoStatusRepository.findPendingNotifications(any()) } returns listOf(status)
@@ -56,13 +58,14 @@ class NotificationSchedulerTest {
     fun `checkDeadlines - 알림이 켜진 계정은 디바이스마다 이벤트를 발행함`() {
         val user = User(id = 1L, authKey = "auth-1L", maskedStudentId = "20****01", notificationEnabled = true)
         val device = UserDevice.create(user, "fcm-token")
-        val todo = Todo.create(
-            subjectId = 10L,
-            materialCode = 100001L,
-            type = TodoType.ASSIGNMENT,
-            dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
-            title = "테스트 과제",
-        )
+        val todo =
+            Todo.create(
+                subjectId = 10L,
+                materialCode = 100001L,
+                type = TodoType.ASSIGNMENT,
+                dueDate = LocalDateTime.of(2026, 5, 10, 23, 59),
+                title = "테스트 과제",
+            )
         val status = UserTodoStatus.create(user.id, todo, 60)
 
         every { userTodoStatusRepository.findPendingNotifications(any()) } returns listOf(status)
