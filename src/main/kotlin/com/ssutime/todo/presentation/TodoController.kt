@@ -96,6 +96,9 @@ class TodoController(
             userId = userId,
             subjectId = request.subjectId,
             materialCode = request.materialCode,
+            type = request.type,
+            dueDate = request.dueDate,
+            title = request.title,
             isCompleted = request.isCompleted,
         )
         return ResponseEntity.ok().build()

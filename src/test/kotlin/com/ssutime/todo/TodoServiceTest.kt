@@ -2,7 +2,6 @@ package com.ssutime.todo
 
 import com.ssutime.auth.domain.User
 import com.ssutime.auth.infrastructure.UserRepository
-import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDateTime
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 
 class TodoServiceTest {
@@ -147,61 +145,137 @@ class TodoServiceTest {
 
     @Test
     fun `updateTodoCompletion - 사용자의 todo 상태를 완료 처리한다`() {
+        val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
 
+        every { todoReportRepository.save(any()) } returns report
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
-        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returns status
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returnsMany listOf(status, status)
         every { userTodoStatusRepository.save(status) } returns status
 
-        todoService.updateTodoCompletion(userId, subjectId, materialCode, isCompleted = true)
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = subjectId,
+            materialCode = materialCode,
+            type = TodoType.ASSIGNMENT,
+            dueDate = dueDate,
+            title = title,
+            isCompleted = true,
+        )
 
         assertEquals(true, status.isCompleted)
         assertNotNull(status.completedAt)
+        verify { todoReportRepository.save(any()) }
         verify { userTodoStatusRepository.save(status) }
+        verify { eventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId)) }
     }
 
     @Test
-    fun `updateTodoCompletion - 사용자의 todo 상태가 없으면 완료할 수 없다`() {
+    fun `updateTodoCompletion - todo가 없으면 POST report처럼 생성한 뒤 완료 처리한다`() {
+        val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+        val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
 
+        every { todoReportRepository.save(any()) } returns report
+        every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns null
+        every { todoRepository.save(any()) } returns todo
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returnsMany listOf(null, status)
+        every { userTodoStatusRepository.save(any()) } returns status
+
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = subjectId,
+            materialCode = materialCode,
+            type = TodoType.ASSIGNMENT,
+            dueDate = dueDate,
+            title = title,
+            isCompleted = true,
+        )
+
+        assertEquals(true, status.isCompleted)
+        assertNotNull(status.completedAt)
+        verify { todoRepository.save(any()) }
+        verify(exactly = 2) { userTodoStatusRepository.save(any()) }
+        verify { eventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId)) }
+    }
+
+    @Test
+    fun `updateTodoCompletion - todo는 있고 사용자 상태가 없으면 POST report처럼 연결한 뒤 완료 처리한다`() {
+        val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
+        val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+        val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
+
+        every { todoReportRepository.save(any()) } returns report
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
-        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returns null
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returnsMany listOf(null, status)
+        every { userTodoStatusRepository.save(any()) } returns status
 
-        assertFailsWith<ResourceNotFoundException> {
-            todoService.updateTodoCompletion(userId, subjectId, materialCode, isCompleted = true)
-        }
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = subjectId,
+            materialCode = materialCode,
+            type = TodoType.ASSIGNMENT,
+            dueDate = dueDate,
+            title = title,
+            isCompleted = true,
+        )
 
-        verify(exactly = 0) { userTodoStatusRepository.save(any()) }
+        assertEquals(true, status.isCompleted)
+        assertNotNull(status.completedAt)
+        verify(exactly = 0) { todoRepository.save(any()) }
+        verify(exactly = 2) { userTodoStatusRepository.save(any()) }
+        verify { eventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId)) }
     }
 
     @Test
     fun `updateTodoCompletion - 이미 완료된 todo 상태는 완료 시각을 변경하지 않는다`() {
+        val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
         status.updateCompletion(completed = true)
         val completedAt = status.completedAt
 
+        every { todoReportRepository.save(any()) } returns report
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
-        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returns status
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returnsMany listOf(status, status)
 
-        todoService.updateTodoCompletion(userId, subjectId, materialCode, isCompleted = true)
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = subjectId,
+            materialCode = materialCode,
+            type = TodoType.ASSIGNMENT,
+            dueDate = dueDate,
+            title = title,
+            isCompleted = true,
+        )
 
         assertEquals(completedAt, status.completedAt)
+        verify { todoReportRepository.save(any()) }
         verify(exactly = 0) { userTodoStatusRepository.save(any()) }
     }
 
     @Test
     fun `updateTodoCompletion - 완료된 todo 상태를 미완료로 변경한다`() {
+        val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
         status.updateCompletion(completed = true)
 
+        every { todoReportRepository.save(any()) } returns report
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
-        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returns status
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, todo) } returnsMany listOf(status, status)
         every { userTodoStatusRepository.save(status) } returns status
 
-        todoService.updateTodoCompletion(userId, subjectId, materialCode, isCompleted = false)
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = subjectId,
+            materialCode = materialCode,
+            type = TodoType.ASSIGNMENT,
+            dueDate = dueDate,
+            title = title,
+            isCompleted = false,
+        )
 
         assertEquals(false, status.isCompleted)
         assertEquals(null, status.completedAt)

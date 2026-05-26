@@ -67,11 +67,12 @@ class TodoService(
         userId: Long,
         subjectId: Long,
         materialCode: Long,
+        type: TodoType,
+        dueDate: LocalDateTime,
+        title: String,
         isCompleted: Boolean,
     ) {
-        val todo =
-            todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
-                ?: throw ResourceNotFoundException("Todo not found: subjectId=$subjectId, materialCode=$materialCode")
+        val todo = processReport(userId, subjectId, materialCode, type, dueDate, title)
         val status =
             userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
                 ?: throw ResourceNotFoundException("Todo status not found: subjectId=$subjectId, materialCode=$materialCode")
