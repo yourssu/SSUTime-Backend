@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -80,4 +81,23 @@ class TodoController(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
     ): ResponseEntity<List<UserTodoStatus>> = ResponseEntity.ok(todoService.getUserTodoStatuses(userId))
+
+    @PutMapping("/report")
+    @Operation(
+        summary = "사용자 할 일 완료 여부 갱신",
+        description = "LMS 할 일 제보와 같은 URL과 요청 본문에 완료 여부만 추가해 인증된 사용자의 할 일 완료 상태를 갱신합니다.",
+    )
+    fun updateTodoCompletion(
+        @Parameter(hidden = true)
+        @AuthenticationPrincipal userId: Long,
+        @RequestBody request: TodoCompletionRequest,
+    ): ResponseEntity<Unit> {
+        todoService.updateTodoCompletion(
+            userId = userId,
+            subjectId = request.subjectId,
+            materialCode = request.materialCode,
+            isCompleted = request.isCompleted,
+        )
+        return ResponseEntity.ok().build()
+    }
 }

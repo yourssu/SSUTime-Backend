@@ -62,4 +62,22 @@ class TodoService(
 
     @Transactional(readOnly = true)
     fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> = userTodoStatusRepository.findAllByUserId(userId)
+
+    fun updateTodoCompletion(
+        userId: Long,
+        subjectId: Long,
+        materialCode: Long,
+        isCompleted: Boolean,
+    ) {
+        val todo =
+            todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
+                ?: throw ResourceNotFoundException("Todo not found: subjectId=$subjectId, materialCode=$materialCode")
+        val status =
+            userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
+                ?: throw ResourceNotFoundException("Todo status not found: subjectId=$subjectId, materialCode=$materialCode")
+
+        if (status.updateCompletion(isCompleted)) {
+            userTodoStatusRepository.save(status)
+        }
+    }
 }

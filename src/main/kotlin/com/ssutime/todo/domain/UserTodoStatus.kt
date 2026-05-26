@@ -55,9 +55,12 @@ class UserTodoStatus private constructor(
         notificationSent = true
     }
 
-    fun complete() {
-        isCompleted = true
-        completedAt = LocalDateTime.now()
+    fun updateCompletion(completed: Boolean): Boolean {
+        if (isCompleted == completed) return false
+
+        isCompleted = completed
+        completedAt = if (completed) LocalDateTime.now() else null
+        return true
     }
 
     companion object {
