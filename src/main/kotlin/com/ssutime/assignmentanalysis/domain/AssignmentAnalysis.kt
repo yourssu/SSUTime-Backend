@@ -35,7 +35,7 @@ class AssignmentAnalysis private constructor(
     @Column(nullable = false, length = 64)
     val contentHash: String,
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "MEDIUMTEXT")
     val sanitizedContent: String,
     @Lob
     @Column(nullable = false)
