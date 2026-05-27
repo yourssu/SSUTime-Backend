@@ -45,7 +45,7 @@ class AssignmentAnalysis private constructor(
     var status: AssignmentAnalysisStatus = AssignmentAnalysisStatus.PENDING,
     @Lob
     var analysis: String? = null,
-    var difficultyScore: Int? = null,
+    var estimatedDurationMinutes: Int? = null,
     var errorCode: String? = null,
     var analyzedAt: LocalDateTime? = null,
 ) : BaseEntity() {
@@ -60,12 +60,12 @@ class AssignmentAnalysis private constructor(
 
     fun markSucceeded(
         summary: String,
-        difficultyScore: Int,
+        estimatedDurationMinutes: Int,
     ) {
         val oneLineSummary = summary.toOneLineSummary()
         status = AssignmentAnalysisStatus.SUCCEEDED
         analysis = oneLineSummary
-        this.difficultyScore = difficultyScore.coerceIn(1, 5)
+        this.estimatedDurationMinutes = estimatedDurationMinutes.toHalfHourMinutes()
         errorCode = null
         analyzedAt = LocalDateTime.now()
     }
@@ -76,6 +76,11 @@ class AssignmentAnalysis private constructor(
         analyzedAt = LocalDateTime.now()
     }
 
+    private fun Int.toHalfHourMinutes(): Int =
+        coerceAtLeast(HALF_HOUR_MINUTES).let { minutes ->
+            ((minutes + HALF_HOUR_MINUTES - 1) / HALF_HOUR_MINUTES) * HALF_HOUR_MINUTES
+        }
+
     private fun String.toOneLineSummary(): String =
         lineSequence()
             .map { it.trim() }
@@ -84,6 +89,8 @@ class AssignmentAnalysis private constructor(
             .orEmpty()
 
     companion object {
+        private const val HALF_HOUR_MINUTES = 30
+
         private const val MAX_ERROR_CODE_LENGTH = 255
 
         fun create(

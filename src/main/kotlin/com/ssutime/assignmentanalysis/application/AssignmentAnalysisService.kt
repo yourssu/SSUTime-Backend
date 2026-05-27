@@ -78,11 +78,11 @@ class AssignmentAnalysisService(
             } else {
                 analysis.markSucceeded(
                     summary = aiAnalysis.summary,
-                    difficultyScore = aiAnalysis.difficultyScore,
+                    estimatedDurationMinutes = aiAnalysis.estimatedDurationMinutes,
                 )
                 analysis.todo.updateAssignmentAnalysis(
                     summary = analysis.analysis ?: aiAnalysis.summary,
-                    difficultyScore = analysis.difficultyScore ?: aiAnalysis.difficultyScore,
+                    estimatedDurationMinutes = analysis.estimatedDurationMinutes ?: aiAnalysis.estimatedDurationMinutes,
                 )
                 todoRepository.save(analysis.todo)
             }

@@ -36,15 +36,21 @@ class AnthropicClient(
 
                     반드시 아래 JSON 객체만 출력하세요. 마크다운 코드블록, 번호 목록, 추가 설명은 금지합니다.
                     - summary: 한국어 plain text 한 줄 요약. 줄바꿈 없이 학생이 할 일을 명확히 요약합니다.
-                    - difficultyScore: 과제 난이도 정수. 1=매우 쉬움, 2=쉬움, 3=보통, 4=어려움, 5=매우 어려움.
+                    - estimatedDurationMinutes: 학생이 과제를 완료하는 데 걸릴 것으로 예상되는 총 소요시간(분) 정수입니다.
+                      반드시 30분 단위로 추정해 30, 60, 90, 120처럼 30의 배수로 출력합니다.
 
-                    {"summary":"한 줄 요약","difficultyScore":3}
+                    {"summary":"한 줄 요약","estimatedDurationMinutes":120}
 
                     콘텐츠:
                     $content
                     """.trimIndent(),
             )
-        if (response.isBlank()) return AssignmentAiAnalysisResult(summary = "", difficultyScore = DEFAULT_DIFFICULTY_SCORE)
+        if (response.isBlank()) {
+            return AssignmentAiAnalysisResult(
+                summary = "",
+                estimatedDurationMinutes = DEFAULT_ESTIMATED_DURATION_MINUTES,
+            )
+        }
         return parseAnalysisResult(response)
     }
 
@@ -55,8 +61,12 @@ class AnthropicClient(
             }
         val root = objectMapper.readTree(json)
         val summary = root.path("summary").asText("").oneLineSummary()
-        val difficultyScore = root.path("difficultyScore").asInt(DEFAULT_DIFFICULTY_SCORE).coerceIn(1, 5)
-        return AssignmentAiAnalysisResult(summary = summary, difficultyScore = difficultyScore)
+        val estimatedDurationMinutes =
+            root
+                .path("estimatedDurationMinutes")
+                .asInt(DEFAULT_ESTIMATED_DURATION_MINUTES)
+                .toHalfHourMinutes()
+        return AssignmentAiAnalysisResult(summary = summary, estimatedDurationMinutes = estimatedDurationMinutes)
     }
 
     private fun String.oneLineSummary(): String =
@@ -66,6 +76,11 @@ class AnthropicClient(
             ?.replace(Regex("""\s+"""), " ")
             ?.take(MAX_SUMMARY_LENGTH)
             .orEmpty()
+
+    private fun Int.toHalfHourMinutes(): Int =
+        coerceAtLeast(HALF_HOUR_MINUTES).let { minutes ->
+            ((minutes + HALF_HOUR_MINUTES - 1) / HALF_HOUR_MINUTES) * HALF_HOUR_MINUTES
+        }
 
     private fun sendMessage(
         maxTokens: Int,
@@ -92,7 +107,8 @@ class AnthropicClient(
     }
 
     companion object {
-        private const val DEFAULT_DIFFICULTY_SCORE = 3
+        private const val DEFAULT_ESTIMATED_DURATION_MINUTES = 60
+        private const val HALF_HOUR_MINUTES = 30
         private const val MAX_SUMMARY_LENGTH = 500
     }
 }

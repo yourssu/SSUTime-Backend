@@ -2,5 +2,5 @@ package com.ssutime.aisummary.infrastructure
 
 data class AssignmentAiAnalysisResult(
     val summary: String,
-    val difficultyScore: Int,
+    val estimatedDurationMinutes: Int,
 )

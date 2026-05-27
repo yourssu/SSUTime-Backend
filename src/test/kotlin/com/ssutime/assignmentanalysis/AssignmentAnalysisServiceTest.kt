@@ -81,7 +81,7 @@ class AssignmentAnalysisServiceTest {
     }
 
     @Test
-    fun `onAssignmentAnalysisPrepared stores AI result and updates todo summary`() {
+    fun `onAssignmentAnalysisPrepared stores AI summary and estimated duration`() {
         val analysis =
             AssignmentAnalysis.create(
                 todo = todo,
@@ -96,7 +96,7 @@ class AssignmentAnalysisServiceTest {
         every { anthropicClient.analyzeAssignment("과제 설명") } returns
             AssignmentAiAnalysisResult(
                 summary = "한 줄 요약\n추가 줄은 저장되면 안 됨",
-                difficultyScore = 4,
+                estimatedDurationMinutes = 95,
             )
         every { todoRepository.save(todo) } returns todo
 
@@ -104,9 +104,9 @@ class AssignmentAnalysisServiceTest {
 
         assertEquals(AssignmentAnalysisStatus.SUCCEEDED, analysis.status)
         assertEquals("한 줄 요약", analysis.analysis)
-        assertEquals(4, analysis.difficultyScore)
+        assertEquals(120, analysis.estimatedDurationMinutes)
         assertEquals("한 줄 요약", todo.aiSummary)
-        assertEquals(4, todo.difficultyScore)
+        assertEquals(120, todo.estimatedDurationMinutes)
         verify { todoRepository.save(todo) }
     }
 }

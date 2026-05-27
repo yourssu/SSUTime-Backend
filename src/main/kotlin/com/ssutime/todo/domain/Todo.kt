@@ -33,7 +33,7 @@ class Todo private constructor(
     @Column(nullable = false)
     var title: String,
     var aiSummary: String? = null,
-    var difficultyScore: Int? = null,
+    var estimatedDurationMinutes: Int? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: TodoStatus = TodoStatus.PROVISIONAL,
@@ -59,13 +59,20 @@ class Todo private constructor(
 
     fun updateAssignmentAnalysis(
         summary: String,
-        difficultyScore: Int,
+        estimatedDurationMinutes: Int,
     ) {
         updateAiSummary(summary)
-        this.difficultyScore = difficultyScore.coerceIn(1, 5)
+        this.estimatedDurationMinutes = estimatedDurationMinutes.toHalfHourMinutes()
     }
 
+    private fun Int.toHalfHourMinutes(): Int =
+        coerceAtLeast(HALF_HOUR_MINUTES).let { minutes ->
+            ((minutes + HALF_HOUR_MINUTES - 1) / HALF_HOUR_MINUTES) * HALF_HOUR_MINUTES
+        }
+
     companion object {
+        private const val HALF_HOUR_MINUTES = 30
+
         fun create(
             subjectId: Long,
             materialCode: Long,
