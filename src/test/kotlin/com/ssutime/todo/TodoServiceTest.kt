@@ -108,14 +108,14 @@ class TodoServiceTest {
     @Test
     fun `processReport - 기존 todo 있고 UserTodoStatus 없을 때 새로 생성`() {
         val report = TodoReport.create(userId, subjectId, materialCode, dueDate, title)
-        val existingTodo = Todo.create(subjectId, materialCode, TodoType.VIDEO, dueDate, title)
+        val existingTodo = Todo.create(subjectId, materialCode, TodoType.COMMONS, dueDate, title)
 
         every { todoReportRepository.save(any()) } returns report
         every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns existingTodo
         every { userTodoStatusRepository.findByUserIdAndTodo(userId, existingTodo) } returns null
         every { userTodoStatusRepository.save(any()) } returns UserTodoStatus.create(userId, existingTodo, thresholdMinutes)
 
-        todoService.processReport(userId, subjectId, materialCode, TodoType.VIDEO, dueDate, title)
+        todoService.processReport(userId, subjectId, materialCode, TodoType.COMMONS, dueDate, title)
 
         verify { userTodoStatusRepository.save(any()) }
         verify { eventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId)) }

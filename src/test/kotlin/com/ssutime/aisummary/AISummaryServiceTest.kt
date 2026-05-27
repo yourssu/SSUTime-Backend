@@ -41,11 +41,11 @@ class AISummaryServiceTest {
     }
 
     @Test
-    fun `onTodoConfirmed - VIDEO 타입이면 처리하지 않음`() {
+    fun `onTodoConfirmed - COMMONS 타입이면 처리하지 않음`() {
         val event =
             TodoConfirmed(
                 todoId = 2L,
-                type = TodoType.VIDEO,
+                type = TodoType.COMMONS,
                 title = "강의 영상 시청",
                 dueDate = dueDate,
             )
