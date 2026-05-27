@@ -35,6 +35,38 @@ class SsuLmsCanvasClientSecurityTest {
     }
 
     @Test
+    fun `createSession accepts root SSU cookie domain with leading dot`() {
+        client.createSession(
+            LmsSessionRequest(
+                cookies =
+                    listOf(
+                        LmsSessionCookieRequest(
+                            name = "_normandy_session",
+                            value = "session",
+                            domain = ".ssu.ac.kr",
+                        ),
+                    ),
+            ),
+        )
+    }
+
+    @Test
+    fun `createSession accepts Smart ID cookie domain`() {
+        client.createSession(
+            LmsSessionRequest(
+                cookies =
+                    listOf(
+                        LmsSessionCookieRequest(
+                            name = "sToken",
+                            value = "token",
+                            domain = "smartid.ssu.ac.kr",
+                        ),
+                    ),
+            ),
+        )
+    }
+
+    @Test
     fun `createSession rejects missing LMS session cookies`() {
         assertFailsWith<InvalidRequestException> {
             client.createSession(LmsSessionRequest())

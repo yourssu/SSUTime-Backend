@@ -127,18 +127,29 @@ class SsuLmsCanvasClient(
         request: LmsSessionCookieRequest,
     ) {
         if (request.name.isBlank() || request.value.isBlank()) return
-        val domain = request.domain.trim().lowercase()
+        val domain = normalizeCookieDomain(request.domain)
         if (domain !in ALLOWED_COOKIE_DOMAINS) {
             throw InvalidRequestException("Unsupported LMS cookie domain")
         }
         val cookie =
             HttpCookie(request.name, request.value).apply {
-                this.domain = domain
+                this.domain = cookieDomainFor(domain)
                 path = request.path.takeIf { it.startsWith("/") } ?: "/"
                 secure = true
             }
         cookieManager.cookieStore.add(URI("https://$domain"), cookie)
     }
+
+    private fun normalizeCookieDomain(rawDomain: String): String =
+        rawDomain
+            .trim()
+            .lowercase()
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .substringBefore('/')
+            .removePrefix(".")
+
+    private fun cookieDomainFor(domain: String): String = if (domain == "ssu.ac.kr") ".$domain" else domain
 
     private fun InputStream.readBoundedBytes(maxBytes: Long): ByteArray =
         use { input ->
@@ -196,7 +207,7 @@ class SsuLmsCanvasClient(
 
     companion object {
         private const val CANVAS_ORIGIN = "https://canvas.ssu.ac.kr"
-        private val ALLOWED_COOKIE_DOMAINS = setOf("canvas.ssu.ac.kr", "lms.ssu.ac.kr")
+        private val ALLOWED_COOKIE_DOMAINS = setOf("canvas.ssu.ac.kr", "lms.ssu.ac.kr", "ssu.ac.kr", "smartid.ssu.ac.kr")
         private val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(20)
     }
 }
