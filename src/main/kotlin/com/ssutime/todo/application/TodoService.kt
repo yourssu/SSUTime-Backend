@@ -54,20 +54,26 @@ class TodoService(
                 true
             }
 
+        val completed = type.isCompletedAssignment()
+        val todoType = type.toTodoType()
+
         val todo =
             todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
-                ?: todoRepository.save(Todo.create(subjectId, materialCode, type, dueDate, title))
+                ?: todoRepository.save(Todo.create(subjectId, materialCode, todoType, dueDate, title))
 
-        userTodoStatusRepository
-            .findByUserIdAndTodo(userId, todo)
-            ?.apply { recalculateNotifyAt(user.notificationThresholdMinutes) }
-            ?: userTodoStatusRepository.save(
-                UserTodoStatus.create(
+        val existingStatus = userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
+        val status =
+            existingStatus
+                ?.apply { recalculateNotifyAt(user.notificationThresholdMinutes) }
+                ?: UserTodoStatus.create(
                     userId = userId,
                     todo = todo,
                     notificationThresholdMinutes = user.notificationThresholdMinutes,
-                ),
-            )
+                )
+
+        if (status.updateCompletion(completed) || existingStatus == null) {
+            userTodoStatusRepository.save(status)
+        }
 
         if (savedNewReport) {
             applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
@@ -77,23 +83,4 @@ class TodoService(
 
     @Transactional(readOnly = true)
     fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> = userTodoStatusRepository.findAllByUserId(userId)
-
-    fun updateTodoCompletion(
-        userId: Long,
-        subjectId: Long,
-        materialCode: Long,
-        type: TodoType,
-        dueDate: LocalDateTime,
-        title: String,
-        isCompleted: Boolean,
-    ) {
-        val todo = processReport(userId, subjectId, materialCode, type, dueDate, title)
-        val status =
-            userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
-                ?: throw ResourceNotFoundException("Todo status not found: subjectId=$subjectId, materialCode=$materialCode")
-
-        if (status.updateCompletion(isCompleted)) {
-            userTodoStatusRepository.save(status)
-        }
-    }
 }

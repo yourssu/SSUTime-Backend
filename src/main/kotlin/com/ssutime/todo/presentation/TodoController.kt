@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -27,7 +26,10 @@ class TodoController(
     @PostMapping("/report")
     @Operation(
         summary = "LMS 할 일 제보",
-        description = "LMS 콘텐츠에서 발견한 할 일을 생성하거나 갱신하고 인증된 사용자와 연결합니다. 알림 예정 시각은 dueDate에서 계정의 notificationThresholdMinutes를 뺀 값으로 계산됩니다.",
+        description =
+            "LMS 콘텐츠에서 발견한 할 일을 생성하거나 갱신하고 인증된 사용자와 연결합니다. " +
+                "type이 SUBMITTED 또는 SUBMITTED_LATE이면 사용자 할 일을 완료 처리합니다. " +
+                "알림 예정 시각은 dueDate에서 계정의 notificationThresholdMinutes를 뺀 값으로 계산됩니다.",
     )
     fun report(
         @Parameter(hidden = true)
@@ -81,26 +83,4 @@ class TodoController(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
     ): ResponseEntity<List<UserTodoStatus>> = ResponseEntity.ok(todoService.getUserTodoStatuses(userId))
-
-    @PutMapping("/report")
-    @Operation(
-        summary = "사용자 할 일 완료 여부 갱신",
-        description = "LMS 할 일 제보와 같은 URL과 요청 본문에 완료 여부만 추가해 인증된 사용자의 할 일 완료 상태를 갱신합니다.",
-    )
-    fun updateTodoCompletion(
-        @Parameter(hidden = true)
-        @AuthenticationPrincipal userId: Long,
-        @RequestBody request: TodoCompletionRequest,
-    ): ResponseEntity<Unit> {
-        todoService.updateTodoCompletion(
-            userId = userId,
-            subjectId = request.subjectId,
-            materialCode = request.materialCode,
-            type = request.type,
-            dueDate = request.dueDate,
-            title = request.title,
-            isCompleted = request.isCompleted,
-        )
-        return ResponseEntity.ok().build()
-    }
 }
