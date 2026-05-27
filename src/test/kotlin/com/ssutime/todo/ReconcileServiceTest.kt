@@ -69,6 +69,31 @@ class ReconcileServiceTest {
     }
 
     @Test
+    fun `같은 사용자의 반복 report는 quorum에서 한 표로만 계산한다`() {
+        val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+        val repeatedReports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+                TodoReport.create(1L, subjectId, materialCode, dueDate, title),
+            )
+
+        every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
+        every {
+            todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(
+                subjectId,
+                materialCode,
+                any(),
+            )
+        } returns repeatedReports
+
+        reconcileService.onTodoReported(TodoReported(subjectId, materialCode, 1L))
+
+        verify(exactly = 0) { todoRepository.save(any()) }
+        verify(exactly = 0) { eventPublisher.publishEvent(any<TodoConfirmed>()) }
+        assertEquals(TodoStatus.PROVISIONAL, todo.status)
+    }
+
+    @Test
     fun `quorum 충족 시 PROVISIONAL에서 CONFIRMED로 전이`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val reports =

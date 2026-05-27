@@ -41,16 +41,22 @@ class ReconcileService(
                 since,
             )
 
-        if (reports.size < QUORUM_SIZE) return
+        val latestReportsByUser =
+            reports
+                .groupBy { it.userId }
+                .values
+                .mapNotNull { userReports -> userReports.maxByOrNull { it.reportedAt } }
+
+        if (latestReportsByUser.size < QUORUM_SIZE) return
 
         val majorityDueDate =
-            reports
+            latestReportsByUser
                 .groupingBy { it.dueDate }
                 .eachCount()
                 .maxByOrNull { it.value }
                 ?.key ?: return
         val majorityTitle =
-            reports
+            latestReportsByUser
                 .groupingBy { it.title }
                 .eachCount()
                 .maxByOrNull { it.value }

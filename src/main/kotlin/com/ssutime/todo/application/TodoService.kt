@@ -37,9 +37,22 @@ class TodoService(
                 .findById(userId)
                 .orElseThrow { ResourceNotFoundException("User not found: $userId") }
 
-        TodoReport
-            .create(userId, subjectId, materialCode, dueDate, title)
-            .let { todoReportRepository.save(it) }
+        val savedNewReport =
+            if (todoReportRepository.existsByUserIdAndSubjectIdAndMaterialCodeAndDueDateAndTitle(
+                    userId = userId,
+                    subjectId = subjectId,
+                    materialCode = materialCode,
+                    dueDate = dueDate,
+                    title = title,
+                )
+            ) {
+                false
+            } else {
+                TodoReport
+                    .create(userId, subjectId, materialCode, dueDate, title)
+                    .let { todoReportRepository.save(it) }
+                true
+            }
 
         val todo =
             todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
@@ -56,7 +69,9 @@ class TodoService(
                 ),
             )
 
-        applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
+        if (savedNewReport) {
+            applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
+        }
         return todo
     }
 

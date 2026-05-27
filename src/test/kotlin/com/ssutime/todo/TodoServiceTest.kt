@@ -57,6 +57,15 @@ class TodoServiceTest {
     fun setUp() {
         justRun { eventPublisher.publishEvent(any<TodoReported>()) }
         every { userRepository.findById(userId) } returns java.util.Optional.of(user)
+        every {
+            todoReportRepository.existsByUserIdAndSubjectIdAndMaterialCodeAndDueDateAndTitle(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+            )
+        } returns false
     }
 
     @Test
@@ -132,6 +141,29 @@ class TodoServiceTest {
         assertEquals(subjectId, capturedEvent.subjectId)
         assertEquals(materialCode, capturedEvent.materialCode)
         assertEquals(userId, capturedEvent.userId)
+    }
+
+    @Test
+    fun `processReport - 같은 사용자의 동일 report는 저장과 이벤트 발행을 건너뛴다`() {
+        val existingTodo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+        val existingStatus = UserTodoStatus.create(userId, existingTodo, thresholdMinutes)
+
+        every {
+            todoReportRepository.existsByUserIdAndSubjectIdAndMaterialCodeAndDueDateAndTitle(
+                userId,
+                subjectId,
+                materialCode,
+                dueDate,
+                title,
+            )
+        } returns true
+        every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns existingTodo
+        every { userTodoStatusRepository.findByUserIdAndTodo(userId, existingTodo) } returns existingStatus
+
+        todoService.processReport(userId, subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+
+        verify(exactly = 0) { todoReportRepository.save(any()) }
+        verify(exactly = 0) { eventPublisher.publishEvent(any<TodoReported>()) }
     }
 
     @Test
