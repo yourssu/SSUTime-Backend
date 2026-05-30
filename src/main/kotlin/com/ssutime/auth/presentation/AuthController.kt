@@ -42,6 +42,23 @@ class AuthController(
         return ResponseEntity.ok().build()
     }
 
+    @PostMapping("/withdrawal-requests")
+    @Operation(
+        summary = "계정 탈퇴 요청",
+        description = "인증된 계정의 탈퇴 요청을 접수합니다. 이미 접수된 계정은 기존 요청을 반환하여 중복 요청을 만들지 않습니다.",
+    )
+    fun requestAccountWithdrawal(
+        @Parameter(hidden = true)
+        @AuthenticationPrincipal userId: Long,
+        @RequestBody(required = false) request: AccountWithdrawalRequestRequest?,
+    ): ResponseEntity<AccountWithdrawalRequestResponse> =
+        ResponseEntity.ok(
+            authService.requestAccountWithdrawal(
+                userId = userId,
+                reason = request?.reason,
+            ),
+        )
+
     @GetMapping("/notification-settings")
     @Operation(
         summary = "알림 설정 조회",

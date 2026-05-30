@@ -1,8 +1,10 @@
 package com.ssutime.auth
 
 import com.ssutime.auth.application.AuthService
+import com.ssutime.auth.domain.AccountWithdrawalRequest
 import com.ssutime.auth.domain.User
 import com.ssutime.auth.domain.UserDevice
+import com.ssutime.auth.infrastructure.AccountWithdrawalRequestRepository
 import com.ssutime.auth.infrastructure.JwtTokenProvider
 import com.ssutime.auth.infrastructure.UserDeviceRepository
 import com.ssutime.auth.infrastructure.UserRepository
@@ -26,9 +28,17 @@ import java.util.Optional
 class AuthServiceTest {
     private val userRepository: UserRepository = mockk()
     private val userDeviceRepository: UserDeviceRepository = mockk()
+    private val accountWithdrawalRequestRepository: AccountWithdrawalRequestRepository = mockk()
     private val jwtTokenProvider: JwtTokenProvider = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
-    private val authService = AuthService(userRepository, userDeviceRepository, jwtTokenProvider, userTodoStatusRepository)
+    private val authService =
+        AuthService(
+            userRepository,
+            userDeviceRepository,
+            accountWithdrawalRequestRepository,
+            jwtTokenProvider,
+            userTodoStatusRepository,
+        )
 
     @Test
     fun `loginOrRegister - existing user returns token`() {
@@ -230,6 +240,44 @@ class AuthServiceTest {
                 notificationEnabled = true,
                 notificationThresholdMinutes = -1,
             )
+        }
+    }
+
+    @Test
+    fun `requestAccountWithdrawal - creates request for authenticated user`() {
+        val user = User(id = 1L, authKey = "auth-1", maskedStudentId = "20****01")
+        val requestSlot = slot<AccountWithdrawalRequest>()
+        every { userRepository.findById(1L) } returns Optional.of(user)
+        every { accountWithdrawalRequestRepository.findByUserId(1L) } returns null
+        every { accountWithdrawalRequestRepository.save(capture(requestSlot)) } answers { requestSlot.captured }
+
+        val response = authService.requestAccountWithdrawal(1L, "  사용 빈도가 낮아요  ")
+
+        assertEquals("REQUESTED", response.status.name)
+        assertEquals(1L, requestSlot.captured.userId)
+        assertEquals("20****01", requestSlot.captured.maskedStudentId)
+        assertEquals("사용 빈도가 낮아요", requestSlot.captured.reason)
+    }
+
+    @Test
+    fun `requestAccountWithdrawal - returns existing request without duplication`() {
+        val user = User(id = 1L, authKey = "auth-1", maskedStudentId = "20****01")
+        val existingRequest = AccountWithdrawalRequest.create(user, "기존 요청")
+        every { userRepository.findById(1L) } returns Optional.of(user)
+        every { accountWithdrawalRequestRepository.findByUserId(1L) } returns existingRequest
+
+        val response = authService.requestAccountWithdrawal(1L, "새 요청")
+
+        assertEquals("REQUESTED", response.status.name)
+        verify(exactly = 0) { accountWithdrawalRequestRepository.save(any()) }
+    }
+
+    @Test
+    fun `requestAccountWithdrawal - throws when user not found`() {
+        every { userRepository.findById(99L) } returns Optional.empty()
+
+        assertThrows<ResourceNotFoundException> {
+            authService.requestAccountWithdrawal(99L, null)
         }
     }
 }
