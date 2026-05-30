@@ -1,10 +1,13 @@
 package com.ssutime.auth.application
 
+import com.ssutime.auth.domain.AccountWithdrawalRequest
 import com.ssutime.auth.domain.User
 import com.ssutime.auth.domain.UserDevice
+import com.ssutime.auth.infrastructure.AccountWithdrawalRequestRepository
 import com.ssutime.auth.infrastructure.JwtTokenProvider
 import com.ssutime.auth.infrastructure.UserDeviceRepository
 import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.auth.presentation.AccountWithdrawalRequestResponse
 import com.ssutime.auth.presentation.NotificationSettingsResponse
 import com.ssutime.auth.presentation.TokenResponse
 import com.ssutime.common.exception.InvalidRequestException
@@ -19,6 +22,7 @@ import java.security.MessageDigest
 class AuthService(
     private val userRepository: UserRepository,
     private val userDeviceRepository: UserDeviceRepository,
+    private val accountWithdrawalRequestRepository: AccountWithdrawalRequestRepository,
     private val jwtTokenProvider: JwtTokenProvider,
     private val userTodoStatusRepository: UserTodoStatusRepository,
 ) {
@@ -101,6 +105,25 @@ class AuthService(
             notificationEnabled = user.notificationEnabled,
             notificationThresholdMinutes = user.notificationThresholdMinutes,
         )
+    }
+
+    fun requestAccountWithdrawal(
+        userId: Long,
+        reason: String?,
+    ): AccountWithdrawalRequestResponse {
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
+        val withdrawalRequest =
+            accountWithdrawalRequestRepository.findByUserId(userId)
+                ?: accountWithdrawalRequestRepository.save(
+                    AccountWithdrawalRequest.create(
+                        user = user,
+                        reason = reason,
+                    ),
+                )
+        return AccountWithdrawalRequestResponse.from(withdrawalRequest)
     }
 
     private fun credentialHash(
