@@ -7,8 +7,10 @@ import com.ssutime.assignmentanalysis.domain.AssignmentAnalysisStatus
 import com.ssutime.assignmentanalysis.infrastructure.AssignmentAnalysisRepository
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisResponse
+import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.infrastructure.TodoRepository
+import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
@@ -23,6 +25,7 @@ class AssignmentAnalysisService(
     private val contentExtractor: AssignmentContentExtractor,
     private val assignmentAnalysisRepository: AssignmentAnalysisRepository,
     private val todoRepository: TodoRepository,
+    private val userTodoStatusRepository: UserTodoStatusRepository,
     private val anthropicClient: AnthropicClient,
     private val applicationEventPublisher: ApplicationEventPublisher,
 ) {
@@ -58,6 +61,23 @@ class AssignmentAnalysisService(
             status = analysis.status,
             skippedFiles = analysis.skippedFiles.lines().filter { it.isNotBlank() },
         )
+    }
+
+    @Transactional(readOnly = true)
+    fun getAnalysisStatus(
+        userId: Long,
+        analysisId: Long,
+    ): AssignmentAnalysisResponse {
+        val analysis =
+            assignmentAnalysisRepository
+                .findById(analysisId)
+                .orElseThrow { ResourceNotFoundException("Assignment analysis not found: $analysisId") }
+
+        if (userTodoStatusRepository.findByUserIdAndTodo(userId, analysis.todo) == null) {
+            throw ResourceNotFoundException("Assignment analysis not found: $analysisId")
+        }
+
+        return analysis.toResponse()
     }
 
     @Async("taskExecutor")
@@ -96,4 +116,11 @@ class AssignmentAnalysisService(
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
+
+    private fun AssignmentAnalysis.toResponse(): AssignmentAnalysisResponse =
+        AssignmentAnalysisResponse(
+            analysisId = id,
+            status = status,
+            skippedFiles = skippedFiles.lines().filter { it.isNotBlank() },
+        )
 }

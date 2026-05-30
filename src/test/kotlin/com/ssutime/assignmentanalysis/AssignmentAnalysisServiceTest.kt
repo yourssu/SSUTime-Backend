@@ -12,7 +12,9 @@ import com.ssutime.assignmentanalysis.infrastructure.AssignmentAnalysisRepositor
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoType
+import com.ssutime.todo.domain.UserTodoStatus
 import com.ssutime.todo.infrastructure.TodoRepository
+import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
@@ -28,6 +30,7 @@ class AssignmentAnalysisServiceTest {
     private val contentExtractor: AssignmentContentExtractor = mockk()
     private val analysisRepository: AssignmentAnalysisRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
+    private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
     private val anthropicClient: AnthropicClient = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
     private val service =
@@ -35,6 +38,7 @@ class AssignmentAnalysisServiceTest {
             contentExtractor = contentExtractor,
             assignmentAnalysisRepository = analysisRepository,
             todoRepository = todoRepository,
+            userTodoStatusRepository = userTodoStatusRepository,
             anthropicClient = anthropicClient,
             applicationEventPublisher = eventPublisher,
         )
@@ -108,5 +112,30 @@ class AssignmentAnalysisServiceTest {
         assertEquals("한 줄 요약", todo.aiSummary)
         assertEquals(120, todo.estimatedDurationMinutes)
         verify { todoRepository.save(todo) }
+    }
+
+    @Test
+    fun `getAnalysisStatus returns status for owning user`() {
+        val analysis =
+            AssignmentAnalysis.create(
+                todo = todo,
+                courseId = 44383L,
+                assignmentId = 718158L,
+                contentHash = "a".repeat(64),
+                sanitizedContent = "과제 설명",
+                skippedFiles = "image.png: unsupported file type",
+            )
+        analysis.markSucceeded(
+            summary = "한 줄 요약",
+            estimatedDurationMinutes = 95,
+        )
+        every { analysisRepository.findById(0L) } returns Optional.of(analysis)
+        every { userTodoStatusRepository.findByUserIdAndTodo(1L, todo) } returns UserTodoStatus.create(1L, todo, 30)
+
+        val response = service.getAnalysisStatus(userId = 1L, analysisId = 0L)
+
+        assertEquals(0L, response.analysisId)
+        assertEquals(AssignmentAnalysisStatus.SUCCEEDED, response.status)
+        assertEquals(listOf("image.png: unsupported file type"), response.skippedFiles)
     }
 }
