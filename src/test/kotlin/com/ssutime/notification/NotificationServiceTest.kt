@@ -39,7 +39,7 @@ class NotificationServiceTest {
 
         notificationService.onDeadlineApproaching(event)
 
-        verify { fcmClient.sendPush(fcmToken = "test-token", title = "마감 임박", body = any()) }
+        verify { fcmClient.sendSilentPush(fcmToken = "test-token", data = any()) }
         verify { userTodoStatusRepository.save(status) }
     }
 
@@ -57,7 +57,7 @@ class NotificationServiceTest {
 
         notificationService.onDeadlineApproaching(event)
 
-        verify { fcmClient.sendPush(any(), any(), any()) }
+        verify { fcmClient.sendSilentPush(any(), any()) }
         verify(exactly = 0) { userTodoStatusRepository.save(any()) }
     }
 }
