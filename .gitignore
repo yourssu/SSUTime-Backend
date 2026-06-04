@@ -44,3 +44,4 @@ out/
 src/main/resources/*firebase-adminsdk*.json
 src/main/resources/google-services.json
 src/main/resources/GoogleService-Info.plist
+data/

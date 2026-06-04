@@ -3,21 +3,18 @@ server:
 
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:h2:mem:testdb;MODE=MySQL}
-    username: ${DATABASE_USERNAME:sa}
+    url: ${DATABASE_URL:jdbc:sqlite:./data/ssutime.db}
+    username: ${DATABASE_USERNAME:}
     password: ${DATABASE_PASSWORD:}
-    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+    driver-class-name: ${DATABASE_DRIVER:org.sqlite.JDBC}
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
+        dialect: ${HIBERNATE_DIALECT:org.hibernate.community.dialect.SQLiteDialect}
         format_sql: true
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
 
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-minimum-32-chars-for-local}

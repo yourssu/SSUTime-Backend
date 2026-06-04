@@ -47,6 +47,10 @@ dependencies {
     runtimeOnly 'com.h2database:h2'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
+    // SQLite
+    runtimeOnly 'org.xerial:sqlite-jdbc:3.47.1.0'
+    runtimeOnly 'org.hibernate.orm:hibernate-community-dialects'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5'
     testImplementation 'io.mockk:mockk:1.13.12'
