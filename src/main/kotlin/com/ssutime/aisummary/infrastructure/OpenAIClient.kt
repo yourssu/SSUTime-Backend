@@ -6,16 +6,15 @@ import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 
 @Component
-class AnthropicClient(
-    @Value("\${anthropic.api-key}") private val apiKey: String,
+class OpenAIClient(
+    @Value("\${openai.api-key}") private val apiKey: String,
     private val objectMapper: ObjectMapper,
 ) {
     private val webClient =
         WebClient
             .builder()
-            .baseUrl("https://api.anthropic.com")
-            .defaultHeader("x-api-key", apiKey)
-            .defaultHeader("anthropic-version", "2023-06-01")
+            .baseUrl("https://api.openai.com")
+            .defaultHeader("Authorization", "Bearer $apiKey")
             .defaultHeader("content-type", "application/json")
             .build()
 
@@ -89,20 +88,27 @@ class AnthropicClient(
         if (apiKey.isBlank()) return ""
         val requestBody =
             mapOf(
-                "model" to "claude-haiku-4-5-20251001",
-                "max_tokens" to maxTokens,
-                "messages" to listOf(mapOf("role" to "user", "content" to prompt)),
+                "model" to "gpt-5.6",
+                "max_output_tokens" to maxTokens,
+                "input" to prompt,
             )
         return webClient
             .post()
-            .uri("/v1/messages")
+            .uri("/v1/responses")
             .bodyValue(requestBody)
             .retrieve()
             .bodyToMono(Map::class.java)
             .map { response ->
                 @Suppress("UNCHECKED_CAST")
-                val content = response["content"] as? List<Map<String, Any>>
-                content?.firstOrNull()?.get("text") as? String ?: ""
+                val output = response["output"] as? List<Map<String, Any>>
+                output
+                    ?.flatMap { item ->
+                        item["content"] as? List<Map<String, Any>> ?: emptyList()
+                    }
+                    ?.firstNotNullOfOrNull { content ->
+                        content["text"] as? String
+                    }
+                    ?: ""
             }.block() ?: ""
     }
 

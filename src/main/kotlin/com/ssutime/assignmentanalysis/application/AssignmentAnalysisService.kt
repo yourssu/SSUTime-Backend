@@ -1,6 +1,6 @@
 package com.ssutime.assignmentanalysis.application
 
-import com.ssutime.aisummary.infrastructure.AnthropicClient
+import com.ssutime.aisummary.infrastructure.OpenAIClient
 import com.ssutime.assignmentanalysis.domain.AssignmentAnalysis
 import com.ssutime.assignmentanalysis.domain.AssignmentAnalysisPrepared
 import com.ssutime.assignmentanalysis.domain.AssignmentAnalysisStatus
@@ -26,7 +26,7 @@ class AssignmentAnalysisService(
     private val assignmentAnalysisRepository: AssignmentAnalysisRepository,
     private val todoRepository: TodoRepository,
     private val userTodoStatusRepository: UserTodoStatusRepository,
-    private val anthropicClient: AnthropicClient,
+    private val openAIClient: OpenAIClient,
     private val applicationEventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
@@ -92,7 +92,7 @@ class AssignmentAnalysisService(
         runCatching {
             analysis.markAnalyzing()
             assignmentAnalysisRepository.save(analysis)
-            val aiAnalysis = anthropicClient.analyzeAssignment(analysis.sanitizedContent)
+            val aiAnalysis = openAIClient.analyzeAssignment(analysis.sanitizedContent)
             if (aiAnalysis.summary.isBlank()) {
                 analysis.markFailed("AI_EMPTY_RESPONSE")
             } else {
