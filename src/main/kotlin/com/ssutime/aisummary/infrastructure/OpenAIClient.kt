@@ -88,7 +88,7 @@ class OpenAIClient(
         if (apiKey.isBlank()) return ""
         val requestBody =
             mapOf(
-                "model" to "gpt-5.6",
+                "model" to "gpt-5.6-luna",
                 "max_output_tokens" to maxTokens,
                 "input" to prompt,
             )
