@@ -23,8 +23,8 @@ jwt:
 fcm:
   credentials-path: ${FCM_CREDENTIALS_PATH:}
 
-anthropic:
-  api-key: ${ANTHROPIC_API_KEY:}
+openai:
+  api-key: ${OPENAI_API_KEY:}
 
 sso:
   client-id: ${SSO_CLIENT_ID:}
