@@ -16,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.net.http.HttpClient
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -75,7 +76,7 @@ class AssignmentContentExtractorTest {
     }
 
     @Test
-    fun `extract skips oversized files from metadata before download`() {
+    fun `extract rejects assignment when all attachments exceed metadata size limit`() {
         val session = CanvasSession(httpClient = HttpClient.newHttpClient())
         val metadata =
             CanvasFileMetadata(
@@ -100,14 +101,17 @@ class AssignmentContentExtractorTest {
                 lmsSession = validCookieSession(),
             )
 
-        val extracted = extractor.extract(payload)
+        val exception =
+            assertFailsWith<InvalidRequestException> {
+                extractor.extract(payload)
+            }
 
-        assertTrue(extracted.skippedFiles.single().contains("file too large"))
+        assertEquals("No analyzable attachment", exception.message)
         verify(exactly = 0) { lmsCanvasClient.downloadFile(any(), any()) }
     }
 
     @Test
-    fun `extract skips downloads that exceed total byte limit`() {
+    fun `extract rejects assignment when downloaded attachment is too large`() {
         val session = CanvasSession(httpClient = HttpClient.newHttpClient())
         val metadata =
             CanvasFileMetadata(
@@ -136,9 +140,12 @@ class AssignmentContentExtractorTest {
                 lmsSession = validCookieSession(),
             )
 
-        val extracted = extractor.extract(payload)
+        val exception =
+            assertFailsWith<InvalidRequestException> {
+                extractor.extract(payload)
+            }
 
-        assertTrue(extracted.skippedFiles.single().contains("downloaded file too large"))
+        assertEquals("No analyzable attachment", exception.message)
     }
 
     private fun validCookieSession(): LmsSessionRequest =
