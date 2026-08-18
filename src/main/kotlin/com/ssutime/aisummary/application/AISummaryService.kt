@@ -1,6 +1,6 @@
 package com.ssutime.aisummary.application
 
-import com.ssutime.aisummary.infrastructure.AnthropicClient
+import com.ssutime.aisummary.infrastructure.OpenAIClient
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.domain.event.TodoConfirmed
 import com.ssutime.todo.infrastructure.TodoRepository
@@ -13,7 +13,7 @@ import org.springframework.transaction.event.TransactionalEventListener
 
 @Service
 class AISummaryService(
-    private val anthropicClient: AnthropicClient,
+    private val openAIClient: OpenAIClient,
     private val todoRepository: TodoRepository,
 ) {
     @Async("taskExecutor")
@@ -21,7 +21,7 @@ class AISummaryService(
     @Retryable(maxAttempts = 3, backoff = Backoff(delay = 1000))
     fun onTodoConfirmed(event: TodoConfirmed) {
         if (event.type != TodoType.ASSIGNMENT) return
-        val summary = anthropicClient.summarizeAssignment(event.title)
+        val summary = openAIClient.summarizeAssignment(event.title)
         if (summary.isBlank()) return
         todoRepository.findById(event.todoId).ifPresent { todo ->
             todo.updateAiSummary(summary)

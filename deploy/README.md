@@ -70,7 +70,7 @@ DATABASE_PASSWORD=<mysql-password>
 DATABASE_DRIVER=com.mysql.cj.jdbc.Driver
 JWT_SECRET=<minimum-32-char-secret>
 JWT_EXPIRY_MINUTES=60
-ANTHROPIC_API_KEY=<anthropic-api-key>
+OPENAI_API_KEY=<openai-api-key>
 GOOGLE_APPLICATION_CREDENTIALS_JSON=<firebase-service-account-json>
 # LMS 수집 silent push 주기(분). 운영 기본값은 15, 개발서버에서 1로 설정하면 매분 전체 대상에게 전송됩니다.
 CRAWL_TRIGGER_INTERVAL_MINUTES=15

@@ -1,7 +1,7 @@
 package com.ssutime.aisummary
 
 import com.ssutime.aisummary.application.AISummaryService
-import com.ssutime.aisummary.infrastructure.AnthropicClient
+import com.ssutime.aisummary.infrastructure.OpenAIClient
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.domain.event.TodoConfirmed
@@ -14,9 +14,9 @@ import java.time.LocalDateTime
 import java.util.Optional
 
 class AISummaryServiceTest {
-    private val anthropicClient: AnthropicClient = mockk()
+    private val openAIClient: OpenAIClient = mockk()
     private val todoRepository: TodoRepository = mockk()
-    private val aiSummaryService = AISummaryService(anthropicClient, todoRepository)
+    private val aiSummaryService = AISummaryService(openAIClient, todoRepository)
 
     private val dueDate = LocalDateTime.of(2026, 5, 15, 23, 59)
     private val todo = Todo.create(10L, 100001L, TodoType.ASSIGNMENT, dueDate, "운영체제 6장 과제")
@@ -30,13 +30,13 @@ class AISummaryServiceTest {
                 title = "운영체제 6장 과제",
                 dueDate = dueDate,
             )
-        every { anthropicClient.summarizeAssignment(event.title) } returns "운영체제 6장 과제 요약"
+        every { openAIClient.summarizeAssignment(event.title) } returns "운영체제 6장 과제 요약"
         every { todoRepository.findById(1L) } returns Optional.of(todo)
         every { todoRepository.save(any()) } returns todo
 
         aiSummaryService.onTodoConfirmed(event)
 
-        verify { anthropicClient.summarizeAssignment("운영체제 6장 과제") }
+        verify { openAIClient.summarizeAssignment("운영체제 6장 과제") }
         verify { todoRepository.save(todo) }
     }
 
@@ -52,7 +52,7 @@ class AISummaryServiceTest {
 
         aiSummaryService.onTodoConfirmed(event)
 
-        verify(exactly = 0) { anthropicClient.summarizeAssignment(any()) }
+        verify(exactly = 0) { openAIClient.summarizeAssignment(any()) }
         verify(exactly = 0) { todoRepository.save(any()) }
     }
 
@@ -68,7 +68,7 @@ class AISummaryServiceTest {
 
         aiSummaryService.onTodoConfirmed(event)
 
-        verify(exactly = 0) { anthropicClient.summarizeAssignment(any()) }
+        verify(exactly = 0) { openAIClient.summarizeAssignment(any()) }
         verify(exactly = 0) { todoRepository.save(any()) }
     }
 
@@ -81,7 +81,7 @@ class AISummaryServiceTest {
                 title = "과제",
                 dueDate = dueDate,
             )
-        every { anthropicClient.summarizeAssignment(any()) } returns ""
+        every { openAIClient.summarizeAssignment(any()) } returns ""
 
         aiSummaryService.onTodoConfirmed(event)
 

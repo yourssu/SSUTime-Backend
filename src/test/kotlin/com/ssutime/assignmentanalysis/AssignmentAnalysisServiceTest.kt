@@ -1,6 +1,6 @@
 package com.ssutime.assignmentanalysis
 
-import com.ssutime.aisummary.infrastructure.AnthropicClient
+import com.ssutime.aisummary.infrastructure.OpenAIClient
 import com.ssutime.aisummary.infrastructure.AssignmentAiAnalysisResult
 import com.ssutime.assignmentanalysis.application.AssignmentAnalysisService
 import com.ssutime.assignmentanalysis.application.AssignmentContentExtractor
@@ -31,7 +31,7 @@ class AssignmentAnalysisServiceTest {
     private val analysisRepository: AssignmentAnalysisRepository = mockk()
     private val todoRepository: TodoRepository = mockk()
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
-    private val anthropicClient: AnthropicClient = mockk()
+    private val openAIClient: OpenAIClient = mockk()
     private val eventPublisher: ApplicationEventPublisher = mockk()
     private val service =
         AssignmentAnalysisService(
@@ -39,7 +39,7 @@ class AssignmentAnalysisServiceTest {
             assignmentAnalysisRepository = analysisRepository,
             todoRepository = todoRepository,
             userTodoStatusRepository = userTodoStatusRepository,
-            anthropicClient = anthropicClient,
+            openAIClient = openAIClient,
             applicationEventPublisher = eventPublisher,
         )
 
@@ -97,7 +97,7 @@ class AssignmentAnalysisServiceTest {
             )
         every { analysisRepository.findById(0L) } returns Optional.of(analysis)
         every { analysisRepository.save(any()) } answers { firstArg() }
-        every { anthropicClient.analyzeAssignment("과제 설명") } returns
+        every { openAIClient.analyzeAssignment("과제 설명") } returns
             AssignmentAiAnalysisResult(
                 summary = "한 줄 요약\n추가 줄은 저장되면 안 됨",
                 estimatedDurationMinutes = 95,
