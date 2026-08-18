@@ -31,6 +31,10 @@ notification:
   crawl-trigger:
     interval-minutes: ${CRAWL_TRIGGER_INTERVAL_MINUTES:15}
 
+anthropic:
+  enabled: ${ANTHROPIC_ENABLED:false}
+  api-key: ${ANTHROPIC_API_KEY:}
+
 openai:
   api-key: ${OPENAI_API_KEY:}
 
