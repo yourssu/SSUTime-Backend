@@ -55,6 +55,15 @@ class AssignmentContentExtractor(
                 attachmentTexts.mapNotNull { attachment ->
                     attachment.skippedReason?.let { "${attachment.fileName}: $it" }
                 }
+
+        if (
+            attachmentTexts.none { attachment ->
+                attachment.skippedReason == null && attachment.text.isNotBlank()
+            }
+        ) {
+            throw InvalidRequestException("No analyzable attachment")
+        }
+
         val content = buildSanitizedContent(parsed.text, attachmentTexts)
         if (content.isBlank()) {
             throw InvalidRequestException("No analyzable assignment content")
