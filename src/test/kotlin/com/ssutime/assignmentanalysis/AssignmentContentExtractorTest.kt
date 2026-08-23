@@ -30,6 +30,24 @@ class AssignmentContentExtractorTest {
         )
 
     @Test
+    fun `extract rejects assignment without attachments`() {
+        val payload =
+            AssignmentAnalysisPayload(
+                courseId = 44383L,
+                assignmentId = 10L,
+                assignmentHtml = "<p>과제 설명만 있는 과제</p>",
+            )
+
+        val exception =
+            assertFailsWith<InvalidRequestException> {
+                extractor.extract(payload)
+            }
+
+        assertEquals("No analyzable attachment", exception.message)
+        verify(exactly = 0) { lmsCanvasClient.createSession(any()) }
+    }
+
+    @Test
     fun `extract requires LMS session when file links exist`() {
         val payload =
             AssignmentAnalysisPayload(
