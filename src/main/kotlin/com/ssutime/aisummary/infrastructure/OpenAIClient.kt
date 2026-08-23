@@ -18,12 +18,6 @@ class OpenAIClient(
             .defaultHeader("content-type", "application/json")
             .build()
 
-    fun summarizeAssignment(title: String): String =
-        sendMessage(
-            maxTokens = 200,
-            prompt = "다음 과제를 한 문장으로 요약해줘: $title",
-        )
-
     fun analyzeAssignment(content: String): AssignmentAiAnalysisResult {
         val response =
             sendMessage(
@@ -104,8 +98,7 @@ class OpenAIClient(
                 output
                     ?.flatMap { item ->
                         item["content"] as? List<Map<String, Any>> ?: emptyList()
-                    }
-                    ?.firstNotNullOfOrNull { content ->
+                    }?.firstNotNullOfOrNull { content ->
                         content["text"] as? String
                     }
                     ?: ""
