@@ -19,7 +19,7 @@ class NotificationService(
     fun onDeadlineApproaching(event: DeadlineApproaching) {
         fcmClient.sendSilentPush(
             fcmToken = event.fcmToken,
-            data = mapOf("action" to "deadline_approaching", "todo_id" to event.todoId.toString())
+            data = mapOf("action" to "deadline_approaching", "todo_id" to event.todoId.toString()),
         )
         markNotificationSent(event.userTodoStatusId)
     }
