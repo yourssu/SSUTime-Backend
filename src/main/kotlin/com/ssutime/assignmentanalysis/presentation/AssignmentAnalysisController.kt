@@ -1,6 +1,6 @@
 package com.ssutime.assignmentanalysis.presentation
 
-import com.ssutime.assignmentanalysis.application.AssignmentAnalysisService
+import com.ssutime.assignmentanalysis.application.AssignmentAnalysisQueryService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/assignment-analysis")
 @Tag(name = "Assignment Analysis", description = "과제 첨부 AI 분석 상태 조회 API")
 class AssignmentAnalysisController(
-    private val assignmentAnalysisService: AssignmentAnalysisService,
+    private val assignmentAnalysisQueryService: AssignmentAnalysisQueryService,
 ) {
     @GetMapping("/{analysisId}")
     @Operation(
@@ -28,7 +28,7 @@ class AssignmentAnalysisController(
         @PathVariable analysisId: Long,
     ): ResponseEntity<AssignmentAnalysisResponse> =
         ResponseEntity.ok(
-            assignmentAnalysisService.getAnalysisStatus(
+            assignmentAnalysisQueryService.getAnalysisStatus(
                 userId = userId,
                 analysisId = analysisId,
             ),

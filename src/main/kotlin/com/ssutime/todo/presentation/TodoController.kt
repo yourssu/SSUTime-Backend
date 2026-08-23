@@ -1,6 +1,6 @@
 package com.ssutime.todo.presentation
 
-import com.ssutime.assignmentanalysis.application.AssignmentAnalysisService
+import com.ssutime.assignmentanalysis.application.AssignmentAnalysisPreparationService
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisResponse
 import com.ssutime.assignmentanalysis.presentation.TodoReportWithAnalysisRequest
 import com.ssutime.todo.application.TodoService
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "Todos", description = "할 일 제보 및 인증된 사용자의 할 일 상태 API")
 class TodoController(
     private val todoService: TodoService,
-    private val assignmentAnalysisService: AssignmentAnalysisService,
+    private val assignmentAnalysisPreparationService: AssignmentAnalysisPreparationService,
 ) {
     @PostMapping("/report")
     @Operation(
@@ -67,7 +67,7 @@ class TodoController(
                 title = request.title,
             )
         return ResponseEntity.ok(
-            assignmentAnalysisService.prepareAnalysis(
+            assignmentAnalysisPreparationService.prepareAnalysis(
                 todo = todo,
                 payload = request.assignmentAnalysis,
             ),
