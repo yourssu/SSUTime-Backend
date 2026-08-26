@@ -8,6 +8,7 @@ import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.font.PDType1Font
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts
+import org.apache.poi.xslf.usermodel.XMLSlideShow
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
@@ -111,6 +112,158 @@ class AttachmentTextExtractorTest {
         assertTrue(extracted.text.contains("docs/spec.pdf"))
         assertTrue(extracted.text.contains("PDF assignment specification"))
     }
+
+    @Test
+    fun `pptx extraction reads text in slide order`() {
+        val bytes = pptxBytes("First slide", "Second slide")
+        val metadata = metadata("presentation.PPTX", "application/vnd.openxmlformats-officedocument.presentationml.presentation", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extractor.supports(metadata))
+        assertTrue(extracted.skippedReason == null, extracted.skippedReason)
+        assertTrue(extracted.text.indexOf("First slide") < extracted.text.indexOf("Second slide"))
+    }
+
+    @Test
+    fun `hwpx extraction reads section text in document order`() {
+        val bytes =
+            zipBytes(
+                "mimetype" to "application/hwp+zip",
+                "Contents/section1.xml" to hwpxSection("Second section"),
+                "Contents/section0.xml" to hwpxSection("First section", "Table cell"),
+            )
+        val metadata = metadata("assignment.HWPX", "application/hwp+zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extractor.supports(metadata))
+        assertTrue(extracted.skippedReason == null, extracted.skippedReason)
+        assertTrue(extracted.text.contains("Table cell"))
+        assertTrue(extracted.text.indexOf("First section") < extracted.text.indexOf("Second section"))
+    }
+
+    @Test
+    fun `hwpx extraction rejects malformed document`() {
+        val bytes =
+            zipBytes(
+                "mimetype" to "application/hwp+zip",
+                "Contents/section0.xml" to "<hp:section>",
+            )
+        val metadata = metadata("broken.hwpx", "application/hwp+zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extracted.text.isEmpty())
+        assertTrue(extracted.skippedReason?.startsWith("extract failed:") == true)
+    }
+
+    @Test
+    fun `hwpx extraction rejects external entities`() {
+        val section =
+            """
+            <!DOCTYPE section [<!ENTITY secret SYSTEM "file:///etc/passwd">]>
+            <hp:section xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+                <hp:t>&secret;</hp:t>
+            </hp:section>
+            """.trimIndent()
+        val bytes =
+            zipBytes(
+                "mimetype" to "application/hwp+zip",
+                "Contents/section0.xml" to section,
+            )
+        val metadata = metadata("external-entity.hwpx", "application/hwp+zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extracted.text.isEmpty())
+        assertTrue(extracted.skippedReason?.startsWith("extract failed:") == true)
+    }
+
+    @Test
+    fun `hwpx extraction enforces archive entry count limit`() {
+        val entries =
+            (0..AssignmentAnalysisLimits.MAX_ZIP_ENTRIES)
+                .map { index -> "Metadata/item$index.xml" to "<metadata/>" }
+                .toTypedArray()
+        val bytes = zipBytes(*entries)
+        val metadata = metadata("too-many-entries.hwpx", "application/hwp+zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extracted.text.isEmpty())
+        assertTrue(extracted.skippedReason?.startsWith("extract failed:") == true)
+    }
+
+    @Test
+    fun `hwpx extraction rejects oversized non-section entries`() {
+        val bytes =
+            zipBytes(
+                "mimetype" to "application/hwp+zip",
+                "BinData/image.bin" to ByteArray((AssignmentAnalysisLimits.MAX_ZIP_ENTRY_BYTES + 1).toInt()),
+                "Contents/section0.xml" to hwpxSection("Assignment"),
+            )
+        val metadata = metadata("oversized-entry.hwpx", "application/hwp+zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extracted.text.isEmpty())
+        assertTrue(extracted.skippedReason?.startsWith("extract failed:") == true)
+    }
+
+    @Test
+    fun `hwpx extraction rejects zip without hwpx media type`() {
+        val bytes = zipBytes("Contents/section0.xml" to hwpxSection("Not actually HWPX"))
+        val metadata = metadata("fake.hwpx", "application/zip", bytes)
+
+        val extracted = extractor.extract(metadata, bytes)
+
+        assertTrue(extracted.text.isEmpty())
+        assertTrue(extracted.skippedReason?.startsWith("extract failed:") == true)
+    }
+
+    @Test
+    fun `binary hwp and xlsx remain unsupported`() {
+        val hwp = metadata("document.hwp", "application/x-hwp", byteArrayOf())
+        val xlsx =
+            metadata(
+                "spreadsheet.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                byteArrayOf(),
+            )
+
+        assertFalse(extractor.supports(hwp))
+        assertFalse(extractor.supports(xlsx))
+    }
+
+    private fun metadata(
+        displayName: String,
+        contentType: String,
+        bytes: ByteArray,
+    ): CanvasFileMetadata =
+        CanvasFileMetadata(
+            fileId = 10L,
+            displayName = displayName,
+            contentType = contentType,
+            size = bytes.size.toLong(),
+            downloadUrl = "https://canvas.ssu.ac.kr/files/10/download",
+        )
+
+    private fun pptxBytes(vararg slideTexts: String): ByteArray {
+        val output = ByteArrayOutputStream()
+        XMLSlideShow().use { slideShow ->
+            slideTexts.forEach { text ->
+                slideShow.createSlide().createTextBox().text = text
+            }
+            slideShow.write(output)
+        }
+        return output.toByteArray()
+    }
+
+    private fun hwpxSection(vararg texts: String): String =
+        "<hp:section xmlns:hp=\"http://www.hancom.co.kr/hwpml/2011/paragraph\">" +
+            texts.joinToString("") { text -> "<hp:t>$text</hp:t>" } +
+            "</hp:section>"
 
     private fun zipBytes(vararg entries: Pair<String, Any>): ByteArray {
         val output = ByteArrayOutputStream()
