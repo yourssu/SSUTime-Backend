@@ -17,33 +17,27 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "todo",
-    uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])]
+    uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])],
 )
 @DynamicUpdate
 class Todo private constructor(
     @Column(nullable = false)
     val subjectId: Long,
-
     @Column(nullable = false)
-    val materialCode: String,
-
+    val materialCode: Long,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     val type: TodoType,
-
     @Column(nullable = false)
     var dueDate: LocalDateTime,
-
     @Column(nullable = false)
     var title: String,
-
     var aiSummary: String? = null,
-
+    var estimatedDurationMinutes: Int? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: TodoStatus = TodoStatus.PROVISIONAL,
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0
@@ -63,15 +57,29 @@ class Todo private constructor(
         aiSummary = summary
     }
 
+    fun updateAssignmentAnalysis(
+        summary: String,
+        estimatedDurationMinutes: Int,
+    ) {
+        updateAiSummary(summary)
+        this.estimatedDurationMinutes = estimatedDurationMinutes.toHalfHourMinutes()
+    }
+
+    private fun Int.toHalfHourMinutes(): Int =
+        coerceAtLeast(HALF_HOUR_MINUTES).let { minutes ->
+            ((minutes + HALF_HOUR_MINUTES - 1) / HALF_HOUR_MINUTES) * HALF_HOUR_MINUTES
+        }
+
     companion object {
+        private const val HALF_HOUR_MINUTES = 30
+
         fun create(
             subjectId: Long,
-            materialCode: String,
+            materialCode: Long,
             type: TodoType,
             dueDate: LocalDateTime,
             title: String,
         ): Todo {
-            require(materialCode.isNotBlank()) { "materialCode must not be blank" }
             require(title.isNotBlank()) { "title must not be blank" }
             return Todo(
                 subjectId = subjectId,

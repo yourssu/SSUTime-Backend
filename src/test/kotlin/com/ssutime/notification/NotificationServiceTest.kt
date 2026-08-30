@@ -20,7 +20,7 @@ class NotificationServiceTest {
     private val notificationService = NotificationService(fcmClient, userTodoStatusRepository)
 
     private val dueDate = LocalDateTime.of(2026, 5, 10, 23, 59)
-    private val todo = Todo.create(10L, "MATERIAL_001", TodoType.ASSIGNMENT, dueDate, "테스트 과제")
+    private val todo = Todo.create(10L, 100001L, TodoType.ASSIGNMENT, dueDate, "테스트 과제")
     private val status = UserTodoStatus.create(10L, todo, 60)
 
     @Test
@@ -39,7 +39,7 @@ class NotificationServiceTest {
 
         notificationService.onDeadlineApproaching(event)
 
-        verify { fcmClient.sendPush(fcmToken = "test-token", title = "마감 임박", body = any()) }
+        verify { fcmClient.sendSilentPush(fcmToken = "test-token", data = any()) }
         verify { userTodoStatusRepository.save(status) }
     }
 
@@ -57,7 +57,7 @@ class NotificationServiceTest {
 
         notificationService.onDeadlineApproaching(event)
 
-        verify { fcmClient.sendPush(any(), any(), any()) }
+        verify { fcmClient.sendSilentPush(any(), any()) }
         verify(exactly = 0) { userTodoStatusRepository.save(any()) }
     }
 }

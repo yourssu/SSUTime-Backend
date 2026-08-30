@@ -15,7 +15,8 @@ class JwtTokenProvider(
     private val key by lazy { Keys.hmacShaKeyFor(secret.toByteArray()) }
 
     fun generateToken(userId: Long): String =
-        Jwts.builder()
+        Jwts
+            .builder()
             .subject(userId.toString())
             .issuedAt(Date())
             .expiration(Date(System.currentTimeMillis() + expiryMinutes * 60 * 1000))
@@ -24,7 +25,8 @@ class JwtTokenProvider(
 
     fun getUserId(token: String): Long? =
         runCatching {
-            Jwts.parser()
+            Jwts
+                .parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)

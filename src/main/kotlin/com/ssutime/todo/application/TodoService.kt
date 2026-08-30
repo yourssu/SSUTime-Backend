@@ -1,5 +1,7 @@
 package com.ssutime.todo.application
 
+import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoType
@@ -16,6 +18,7 @@ import java.time.LocalDateTime
 @Service
 @Transactional
 class TodoService(
+    private val userRepository: UserRepository,
     private val todoRepository: TodoRepository,
     private val todoReportRepository: TodoReportRepository,
     private val userTodoStatusRepository: UserTodoStatusRepository,
@@ -24,26 +27,60 @@ class TodoService(
     fun processReport(
         userId: Long,
         subjectId: Long,
-        materialCode: String,
+        materialCode: Long,
         type: TodoType,
         dueDate: LocalDateTime,
         title: String,
-        thresholdMinutes: Int = 60,
-    ) {
-        TodoReport.create(userId, subjectId, materialCode, dueDate, title)
-            .let { todoReportRepository.save(it) }
+    ): Todo {
+        val user =
+            userRepository
+                .findById(userId)
+                .orElseThrow { ResourceNotFoundException("User not found: $userId") }
 
-        val todo = todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
-            ?: todoRepository.save(Todo.create(subjectId, materialCode, type, dueDate, title))
+        val savedNewReport =
+            if (todoReportRepository.existsByUserIdAndSubjectIdAndMaterialCodeAndDueDateAndTitle(
+                    userId = userId,
+                    subjectId = subjectId,
+                    materialCode = materialCode,
+                    dueDate = dueDate,
+                    title = title,
+                )
+            ) {
+                false
+            } else {
+                TodoReport
+                    .create(userId, subjectId, materialCode, dueDate, title)
+                    .let { todoReportRepository.save(it) }
+                true
+            }
 
-        userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
-            ?.apply { recalculateNotifyAt() }
-            ?: userTodoStatusRepository.save(UserTodoStatus.create(userId, todo, thresholdMinutes))
+        val completed = type.isCompletedAssignment()
+        val todoType = type.toTodoType()
 
-        applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
+        val todo =
+            todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode)
+                ?: todoRepository.save(Todo.create(subjectId, materialCode, todoType, dueDate, title))
+
+        val existingStatus = userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
+        val status =
+            existingStatus
+                ?.apply { recalculateNotifyAt(user.notificationThresholdMinutes) }
+                ?: UserTodoStatus.create(
+                    userId = userId,
+                    todo = todo,
+                    notificationThresholdMinutes = user.notificationThresholdMinutes,
+                )
+
+        if (status.updateCompletion(completed) || existingStatus == null) {
+            userTodoStatusRepository.save(status)
+        }
+
+        if (savedNewReport) {
+            applicationEventPublisher.publishEvent(TodoReported(subjectId, materialCode, userId))
+        }
+        return todo
     }
 
     @Transactional(readOnly = true)
-    fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> =
-        userTodoStatusRepository.findAllByUserId(userId)
+    fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> = userTodoStatusRepository.findAllByUserId(userId)
 }

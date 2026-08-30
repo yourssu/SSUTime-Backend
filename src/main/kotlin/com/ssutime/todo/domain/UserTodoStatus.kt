@@ -22,32 +22,23 @@ import kotlin.time.toJavaDuration
 @Table(
     name = "user_todo_status",
     uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "todo_id"])],
-    indexes = [Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent")]
+    indexes = [Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent")],
 )
 @DynamicUpdate
 class UserTodoStatus private constructor(
     @Column(nullable = false)
     val userId: Long,
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "todo_id", nullable = false)
     val todo: Todo,
-
     @Column(nullable = false)
     var isCompleted: Boolean = false,
-
     var completedAt: LocalDateTime? = null,
-
-    @Column(nullable = false)
-    var thresholdMinutes: Int = 60,
-
     @Column(nullable = false)
     var notifyAt: LocalDateTime,
-
     @Column(nullable = false)
     var notificationSent: Boolean = false,
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0
@@ -55,27 +46,34 @@ class UserTodoStatus private constructor(
     @Version
     var version: Long = 0
 
-    fun recalculateNotifyAt() {
-        notifyAt = todo.dueDate - thresholdMinutes.minutes.toJavaDuration()
+    fun recalculateNotifyAt(notificationThresholdMinutes: Int) {
+        require(notificationThresholdMinutes >= 0) { "notificationThresholdMinutes must be non-negative" }
+        notifyAt = todo.dueDate - notificationThresholdMinutes.minutes.toJavaDuration()
     }
 
     fun markNotificationSent() {
         notificationSent = true
     }
 
-    fun complete() {
-        isCompleted = true
-        completedAt = LocalDateTime.now()
+    fun updateCompletion(completed: Boolean): Boolean {
+        if (isCompleted == completed) return false
+
+        isCompleted = completed
+        completedAt = if (completed) LocalDateTime.now() else null
+        return true
     }
 
     companion object {
-        fun create(userId: Long, todo: Todo, thresholdMinutes: Int = 60): UserTodoStatus {
-            require(thresholdMinutes >= 0) { "thresholdMinutes must be non-negative" }
+        fun create(
+            userId: Long,
+            todo: Todo,
+            notificationThresholdMinutes: Int,
+        ): UserTodoStatus {
+            require(notificationThresholdMinutes >= 0) { "notificationThresholdMinutes must be non-negative" }
             return UserTodoStatus(
                 userId = userId,
                 todo = todo,
-                thresholdMinutes = thresholdMinutes,
-                notifyAt = todo.dueDate - thresholdMinutes.minutes.toJavaDuration(),
+                notifyAt = todo.dueDate - notificationThresholdMinutes.minutes.toJavaDuration(),
             )
         }
     }

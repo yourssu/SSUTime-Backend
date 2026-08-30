@@ -69,7 +69,7 @@ ArchUnit으로 강제해두는 것 권장.
 
 ### todo
 
-- **Todo (canonical)**: `(subject_id, material_code)` 자연키. 같은 분반 학생들이 공유 → AI 요약 1회만 계산. 필드: `type: TodoType (ASSIGNMENT|VIDEO|QUIZ)`, `dueDate`, `title`, `aiSummary?`, `status: TodoStatus (PROVISIONAL|CONFIRMED)`.
+- **Todo (canonical)**: `(subject_id, material_code)` 자연키. 같은 분반 학생들이 공유 → AI 요약 1회만 계산. 필드: `type: TodoType (ASSIGNMENT|COMMONS|QUIZ)`, `dueDate`, `title`, `aiSummary?`, `status: TodoStatus (PROVISIONAL|CONFIRMED)`.
 - **UserTodoStatus**: `(user_id, todo_id)` unique. 사용자별 상태. `isCompleted`, `completedAt`, `thresholdMinutes`(사용자가 설정한 알림 임계), `notifyAt`(계산된 알림 시각), `notificationSent: Boolean`.
 - **TodoReport (raw log)**: 사용자가 보고한 원천 데이터. quorum 다수결과 감사 추적용. `(user_id, subject_id, material_code, due_date, title, reported_at)`.
 

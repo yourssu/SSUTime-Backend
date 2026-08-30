@@ -14,23 +14,17 @@ import java.time.LocalDateTime
 class TodoReport private constructor(
     @Column(nullable = false)
     val userId: Long,
-
     @Column(nullable = false)
     val subjectId: Long,
-
     @Column(nullable = false)
-    val materialCode: String,
-
+    val materialCode: Long,
     @Column(nullable = false)
     var dueDate: LocalDateTime,
-
     @Column(nullable = false)
     var title: String,
-
     @Column(nullable = false)
     val reportedAt: LocalDateTime = LocalDateTime.now(),
 ) : BaseEntity() {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0
@@ -39,11 +33,10 @@ class TodoReport private constructor(
         fun create(
             userId: Long,
             subjectId: Long,
-            materialCode: String,
+            materialCode: Long,
             dueDate: LocalDateTime,
             title: String,
         ): TodoReport {
-            require(materialCode.isNotBlank()) { "materialCode must not be blank" }
             require(title.isNotBlank()) { "title must not be blank" }
             return TodoReport(
                 userId = userId,
