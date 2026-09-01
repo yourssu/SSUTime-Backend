@@ -37,6 +37,8 @@ class SwaggerSecurityTest {
                 jsonPath("$.paths['/todo/todos/{statusId}/completion'].patch.requestBody.content['application/json'].schema['\$ref']") {
                     value("#/components/schemas/TodoCompletionRequest")
                 }
+                jsonPath("$.components.schemas.UserTodoStatus.properties.isManuallyCompleted.type") { value("boolean") }
+                jsonPath("$.components.schemas.UserTodoStatus.properties.manuallyCompleted") { doesNotExist() }
                 jsonPath("$.paths['/notifications/test-fcm'].post.summary") { value("FCM 메시지 dry-run 테스트") }
                 jsonPath("$.paths['/notifications/test-fcm'].post.description") {
                     value(org.hamcrest.Matchers.containsString("실제 마감 알림은 title"))
