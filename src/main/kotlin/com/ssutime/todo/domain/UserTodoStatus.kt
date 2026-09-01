@@ -35,6 +35,8 @@ class UserTodoStatus private constructor(
     var isCompleted: Boolean = false,
     var completedAt: LocalDateTime? = null,
     @Column(nullable = false)
+    var isManuallyCompleted: Boolean = false,
+    @Column(nullable = false)
     var notifyAt: LocalDateTime,
     @Column(nullable = false)
     var notificationSent: Boolean = false,
@@ -61,6 +63,20 @@ class UserTodoStatus private constructor(
         isCompleted = completed
         completedAt = if (completed) LocalDateTime.now() else null
         return true
+    }
+
+    fun updateCompletionFromReport(completed: Boolean): Boolean {
+        if (!completed && isManuallyCompleted) return false
+
+        val manualStateChanged = completed && isManuallyCompleted
+        if (completed) isManuallyCompleted = false
+        return updateCompletion(completed) || manualStateChanged
+    }
+
+    fun updateCompletionManually(completed: Boolean): Boolean {
+        val manualStateChanged = isManuallyCompleted != completed
+        isManuallyCompleted = completed
+        return updateCompletion(completed) || manualStateChanged
     }
 
     companion object {

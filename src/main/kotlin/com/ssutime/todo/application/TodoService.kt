@@ -2,6 +2,7 @@ package com.ssutime.todo.application
 
 import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.ResourceNotFoundException
+import com.ssutime.common.exception.UnauthorizedException
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoType
@@ -71,7 +72,7 @@ class TodoService(
                     notificationThresholdMinutes = user.notificationThresholdMinutes,
                 )
 
-        if (status.updateCompletion(completed) || existingStatus == null) {
+        if (status.updateCompletionFromReport(completed) || existingStatus == null) {
             userTodoStatusRepository.save(status)
         }
 
@@ -83,4 +84,22 @@ class TodoService(
 
     @Transactional(readOnly = true)
     fun getUserTodoStatuses(userId: Long): List<UserTodoStatus> = userTodoStatusRepository.findAllByUserId(userId)
+
+    fun updateCompletion(
+        userId: Long,
+        userTodoStatusId: Long,
+        isCompleted: Boolean,
+    ): UserTodoStatus {
+        val status =
+            userTodoStatusRepository
+                .findById(userTodoStatusId)
+                .orElseThrow { ResourceNotFoundException("UserTodoStatus not found: $userTodoStatusId") }
+        if (status.userId != userId) {
+            throw UnauthorizedException("Not your todo status")
+        }
+        if (status.updateCompletionManually(isCompleted)) {
+            return userTodoStatusRepository.save(status)
+        }
+        return status
+    }
 }

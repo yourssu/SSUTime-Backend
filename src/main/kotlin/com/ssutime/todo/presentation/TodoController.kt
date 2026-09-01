@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -83,4 +85,17 @@ class TodoController(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
     ): ResponseEntity<List<UserTodoStatus>> = ResponseEntity.ok(todoService.getUserTodoStatuses(userId))
+
+    @PatchMapping("/todos/{statusId}/completion")
+    @Operation(
+        summary = "사용자 할 일 완료 상태 변경",
+        description = "인증된 사용자가 자신의 과제, 퀴즈 등 할 일을 직접 완료 처리하거나 미완료로 되돌립니다.",
+    )
+    fun updateCompletion(
+        @Parameter(hidden = true)
+        @AuthenticationPrincipal userId: Long,
+        @Parameter(description = "변경할 사용자 할 일 상태 ID입니다.", example = "1")
+        @PathVariable statusId: Long,
+        @RequestBody request: TodoCompletionRequest,
+    ): ResponseEntity<UserTodoStatus> = ResponseEntity.ok(todoService.updateCompletion(userId, statusId, request.isCompleted))
 }
