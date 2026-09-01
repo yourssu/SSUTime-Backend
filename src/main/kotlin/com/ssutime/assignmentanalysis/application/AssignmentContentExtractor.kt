@@ -15,64 +15,88 @@ class AssignmentContentExtractor(
         val skipped = mutableListOf<String>()
         val attachmentTexts = mutableListOf<ExtractedAttachment>()
 
-        if (parsed.fileLinks.isNotEmpty()) {
-            val lmsSession =
-                payload.lmsSession
-                    ?: throw InvalidRequestException("lmsSession is required when assignmentHtml has file links")
-            val session = lmsCanvasClient.createSession(lmsSession)
-            var totalBytes = 0L
+        processAttachments(payload, parsed, skipped, attachmentTexts)
 
-            parsed.fileLinks.forEach { link ->
-                if (link.courseId != null && link.courseId != payload.courseId) {
-                    skipped += "${link.label}: course mismatch"
-                    return@forEach
-                }
+        val allSkipped = collectSkippedFiles(skipped, attachmentTexts)
 
-                val metadata = lmsCanvasClient.getFileMetadata(session, payload.courseId, link.fileId)
-                val validationError = validateMetadata(metadata, totalBytes)
-                if (validationError != null) {
-                    skipped += "${metadata.displayName}: $validationError"
-                    return@forEach
-                }
-
-                val bytes = lmsCanvasClient.downloadFile(session, metadata)
-                if (bytes.size.toLong() > AssignmentAnalysisLimits.MAX_SINGLE_FILE_BYTES) {
-                    skipped += "${metadata.displayName}: downloaded file too large"
-                    return@forEach
-                }
-                totalBytes += bytes.size
-                if (totalBytes > AssignmentAnalysisLimits.MAX_TOTAL_DOWNLOAD_BYTES) {
-                    skipped += "${metadata.displayName}: total download limit exceeded"
-                    return@forEach
-                }
-
-                attachmentTexts += textExtractor.extract(metadata, bytes)
-            }
-        }
-
-        val allSkipped =
-            skipped +
-                attachmentTexts.mapNotNull { attachment ->
-                    attachment.skippedReason?.let { "${attachment.fileName}: $it" }
-                }
-
-        if (
-            attachmentTexts.none { attachment ->
-                attachment.skippedReason == null && attachment.text.isNotBlank()
-            }
-        ) {
-            throw InvalidRequestException("No analyzable attachment")
-        }
+        validateAnalyzableAttachments(attachmentTexts)
 
         val content = buildSanitizedContent(parsed.text, attachmentTexts)
-        if (content.isBlank()) {
-            throw InvalidRequestException("No analyzable assignment content")
-        }
         return ExtractedAssignmentContent(
             sanitizedContent = content.take(AssignmentAnalysisLimits.MAX_EXTRACTED_CHARS),
             skippedFiles = allSkipped,
         )
     }
+
+    private fun processAttachments(
+        payload: AssignmentAnalysisPayload,
+        parsed: ParsedAssignmentHtml,
+        skipped: MutableList<String>,
+        attachmentTexts: MutableList<ExtractedAttachment>,
+    ) {
+        if (parsed.fileLinks.isEmpty()) return
+
+        val session = createLmsSession(payload)
+        var totalBytes = 0L
+
+        parsed.fileLinks.forEach { link ->
+            val result = processAttachment(payload, session, link, totalBytes)
+            result.skippedFile?.let { skipped += it }
+            result.attachment?.let { attachmentTexts += it }
+            totalBytes += result.countedBytes
+        }
+    }
+
+    private fun createLmsSession(payload: AssignmentAnalysisPayload): CanvasSession {
+        val lmsSession =
+            payload.lmsSession
+                ?: throw InvalidRequestException("lmsSession is required when assignmentHtml has file links")
+        return lmsCanvasClient.createSession(lmsSession)
+    }
+
+    private fun processAttachment(
+        payload: AssignmentAnalysisPayload,
+        session: CanvasSession,
+        link: CanvasFileLink,
+        totalBytes: Long,
+    ): AttachmentProcessingResult {
+        val courseValidationError = validateCourse(payload, link)
+        if (courseValidationError != null) {
+            return AttachmentProcessingResult(skippedFile = "${link.label}: $courseValidationError")
+        }
+
+        val metadata = lmsCanvasClient.getFileMetadata(session, payload.courseId, link.fileId)
+        val validationError = validateMetadata(metadata, totalBytes)
+        if (validationError != null) {
+            return AttachmentProcessingResult(skippedFile = "${metadata.displayName}: $validationError")
+        }
+
+        val bytes = lmsCanvasClient.downloadFile(session, metadata)
+        val downloadValidationError = validateDownload(bytes, totalBytes)
+        if (downloadValidationError != null) {
+            val countedBytes =
+                if (bytes.size.toLong() > AssignmentAnalysisLimits.MAX_SINGLE_FILE_BYTES) 0L else bytes.size.toLong()
+            return AttachmentProcessingResult(
+                skippedFile = "${metadata.displayName}: $downloadValidationError",
+                countedBytes = countedBytes,
+            )
+        }
+
+        return AttachmentProcessingResult(
+            attachment = textExtractor.extract(metadata, bytes),
+            countedBytes = bytes.size.toLong(),
+        )
+    }
+
+    private fun validateCourse(
+        payload: AssignmentAnalysisPayload,
+        link: CanvasFileLink,
+    ): String? =
+        if (link.courseId != null && link.courseId != payload.courseId) {
+            "course mismatch"
+        } else {
+            null
+        }
 
     private fun validateMetadata(
         metadata: CanvasFileMetadata,
@@ -93,6 +117,38 @@ class AssignmentContentExtractor(
         return null
     }
 
+    private fun validateDownload(
+        bytes: ByteArray,
+        totalBytes: Long,
+    ): String? {
+        if (bytes.size.toLong() > AssignmentAnalysisLimits.MAX_SINGLE_FILE_BYTES) {
+            return "downloaded file too large"
+        }
+        if (totalBytes + bytes.size > AssignmentAnalysisLimits.MAX_TOTAL_DOWNLOAD_BYTES) {
+            return "total download limit exceeded"
+        }
+        return null
+    }
+
+    private fun collectSkippedFiles(
+        skipped: List<String>,
+        attachmentTexts: List<ExtractedAttachment>,
+    ): List<String> =
+        skipped +
+            attachmentTexts.mapNotNull { attachment ->
+                attachment.skippedReason?.let { "${attachment.fileName}: $it" }
+            }
+
+    private fun validateAnalyzableAttachments(attachmentTexts: List<ExtractedAttachment>) {
+        if (
+            attachmentTexts.none { attachment ->
+                attachment.skippedReason == null && attachment.text.isNotBlank()
+            }
+        ) {
+            throw InvalidRequestException("No analyzable attachment")
+        }
+    }
+
     private fun buildSanitizedContent(
         htmlText: String,
         attachments: List<ExtractedAttachment>,
@@ -108,4 +164,10 @@ class AssignmentContentExtractor(
                     appendLine(attachment.text)
                 }
         }
+
+    private data class AttachmentProcessingResult(
+        val attachment: ExtractedAttachment? = null,
+        val skippedFile: String? = null,
+        val countedBytes: Long = 0L,
+    )
 }

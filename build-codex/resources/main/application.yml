@@ -1,0 +1,42 @@
+server:
+  forward-headers-strategy: native
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:mem:testdb;MODE=MySQL}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-minimum-32-chars-for-local}
+  expiry-minutes: ${JWT_EXPIRY_MINUTES:60}
+
+fcm:
+  credentials-path: ${FCM_CREDENTIALS_PATH:}
+  credentials-json: ${GOOGLE_APPLICATION_CREDENTIALS_JSON:}
+
+notification:
+  crawl-trigger:
+    interval-minutes: ${CRAWL_TRIGGER_INTERVAL_MINUTES:15}
+
+anthropic:
+  enabled: ${ANTHROPIC_ENABLED:false}
+  api-key: ${ANTHROPIC_API_KEY:}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
