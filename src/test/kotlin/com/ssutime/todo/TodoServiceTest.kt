@@ -2,6 +2,7 @@ package com.ssutime.todo
 
 import com.ssutime.auth.domain.User
 import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.common.exception.UnauthorizedException
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.TodoReport
@@ -21,7 +22,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDateTime
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class TodoServiceTest {
     private val userRepository: UserRepository = mockk()
@@ -253,5 +257,46 @@ class TodoServiceTest {
         assertEquals(false, status.isCompleted)
         assertEquals(null, status.completedAt)
         verify { userTodoStatusRepository.save(status) }
+    }
+
+    @Test
+    fun `updateCompletion lets the owner complete a quiz`() {
+        val quiz = Todo.create(subjectId, materialCode, TodoType.QUIZ, dueDate, title)
+        val status = UserTodoStatus.create(userId, quiz, thresholdMinutes)
+        every { userTodoStatusRepository.findById(status.id) } returns java.util.Optional.of(status)
+        every { userTodoStatusRepository.save(status) } returns status
+
+        val result = todoService.updateCompletion(userId, status.id, true)
+
+        assertSame(status, result)
+        assertTrue(result.isCompleted)
+        assertNotNull(result.completedAt)
+        verify { userTodoStatusRepository.save(status) }
+    }
+
+    @Test
+    fun `updateCompletion rejects another users todo status`() {
+        val quiz = Todo.create(subjectId, materialCode, TodoType.QUIZ, dueDate, title)
+        val status = UserTodoStatus.create(userId = 2L, todo = quiz, notificationThresholdMinutes = thresholdMinutes)
+        every { userTodoStatusRepository.findById(status.id) } returns java.util.Optional.of(status)
+
+        assertFailsWith<UnauthorizedException> {
+            todoService.updateCompletion(userId, status.id, true)
+        }
+
+        verify(exactly = 0) { userTodoStatusRepository.save(any()) }
+    }
+
+    @Test
+    fun `manual completion is not reverted by a later incomplete LMS report`() {
+        val todo = Todo.create(subjectId, materialCode, TodoType.QUIZ, dueDate, title)
+        val status = UserTodoStatus.create(userId, todo, thresholdMinutes)
+        status.updateCompletionManually(true)
+
+        val changed = status.updateCompletionFromReport(false)
+
+        assertEquals(false, changed)
+        assertTrue(status.isCompleted)
+        assertTrue(status.isManuallyCompleted)
     }
 }

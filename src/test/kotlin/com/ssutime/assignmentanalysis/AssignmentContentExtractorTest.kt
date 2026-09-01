@@ -6,6 +6,7 @@ import com.ssutime.assignmentanalysis.application.AssignmentHtmlParser
 import com.ssutime.assignmentanalysis.application.AttachmentTextExtractor
 import com.ssutime.assignmentanalysis.application.CanvasFileMetadata
 import com.ssutime.assignmentanalysis.application.CanvasSession
+import com.ssutime.assignmentanalysis.application.ExtractedAttachment
 import com.ssutime.assignmentanalysis.application.LmsCanvasClient
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.assignmentanalysis.presentation.LmsSessionCookieRequest
@@ -57,7 +58,9 @@ class AssignmentContentExtractorTest {
                 lmsSession = null,
             )
 
-        assertFailsWith<InvalidRequestException> { extractor.extract(payload) }
+        val exception = assertFailsWith<InvalidRequestException> { extractor.extract(payload) }
+
+        assertEquals("lmsSession is required when assignmentHtml has file links", exception.message)
     }
 
     @Test
@@ -164,6 +167,102 @@ class AssignmentContentExtractorTest {
             }
 
         assertEquals("No analyzable attachment", exception.message)
+    }
+
+    @Test
+    fun `extract keeps successful attachment and reports skipped attachment`() {
+        val session = CanvasSession(httpClient = HttpClient.newHttpClient())
+        val unsupportedMetadata =
+            CanvasFileMetadata(
+                fileId = 1L,
+                displayName = "image.png",
+                contentType = "image/png",
+                size = 12L,
+                downloadUrl = "https://canvas.ssu.ac.kr/files/1/download",
+            )
+        val validMetadata =
+            CanvasFileMetadata(
+                fileId = 2L,
+                displayName = "guide.txt",
+                contentType = "text/plain",
+                size = 12L,
+                downloadUrl = "https://canvas.ssu.ac.kr/files/2/download",
+            )
+        every { lmsCanvasClient.createSession(validCookieSession()) } returns session
+        every { lmsCanvasClient.getFileMetadata(session, 44383L, 1L) } returns unsupportedMetadata
+        every { lmsCanvasClient.getFileMetadata(session, 44383L, 2L) } returns validMetadata
+        every { lmsCanvasClient.downloadFile(session, validMetadata) } returns "submission guide".toByteArray()
+
+        val payload =
+            AssignmentAnalysisPayload(
+                courseId = 44383L,
+                assignmentId = 10L,
+                assignmentHtml =
+                    """
+                    <p>Assignment</p>
+                    <a data-api-endpoint="https://canvas.ssu.ac.kr/api/v1/courses/44383/files/1">image.png</a>
+                    <a data-api-endpoint="https://canvas.ssu.ac.kr/api/v1/courses/44383/files/2">guide.txt</a>
+                    """.trimIndent(),
+                lmsSession = validCookieSession(),
+            )
+
+        val extracted = extractor.extract(payload)
+
+        assertTrue(extracted.sanitizedContent.contains("submission guide"))
+        assertEquals(listOf("image.png: unsupported file type"), extracted.skippedFiles)
+        verify(exactly = 0) { lmsCanvasClient.downloadFile(session, unsupportedMetadata) }
+    }
+
+    @Test
+    fun `extract applies total download limit across attachments`() {
+        val textExtractor: AttachmentTextExtractor = mockk()
+        val extractor =
+            AssignmentContentExtractor(
+                htmlParser = AssignmentHtmlParser(),
+                lmsCanvasClient = lmsCanvasClient,
+                textExtractor = textExtractor,
+            )
+        val session = CanvasSession(httpClient = HttpClient.newHttpClient())
+        val metadata =
+            (1L..4L).associateWith { fileId ->
+                CanvasFileMetadata(
+                    fileId = fileId,
+                    displayName = "$fileId.txt",
+                    contentType = "text/plain",
+                    size = if (fileId == 4L) 1L else AssignmentAnalysisLimits.MAX_SINGLE_FILE_BYTES,
+                    downloadUrl = "https://canvas.ssu.ac.kr/files/$fileId/download",
+                )
+            }
+        every { textExtractor.supports(any()) } returns true
+        every { textExtractor.extract(any(), any()) } answers {
+            val fileMetadata = firstArg<CanvasFileMetadata>()
+            ExtractedAttachment(fileMetadata.displayName, "content")
+        }
+        every { lmsCanvasClient.createSession(validCookieSession()) } returns session
+        metadata.forEach { (fileId, fileMetadata) ->
+            every { lmsCanvasClient.getFileMetadata(session, 44383L, fileId) } returns fileMetadata
+            if (fileId != 4L) {
+                every { lmsCanvasClient.downloadFile(session, fileMetadata) } returns
+                    ByteArray(AssignmentAnalysisLimits.MAX_SINGLE_FILE_BYTES.toInt())
+            }
+        }
+
+        val links =
+            (1L..4L).joinToString("\n") { fileId ->
+                "<a data-api-endpoint=\"https://canvas.ssu.ac.kr/api/v1/courses/44383/files/$fileId\">$fileId.txt</a>"
+            }
+        val payload =
+            AssignmentAnalysisPayload(
+                courseId = 44383L,
+                assignmentId = 10L,
+                assignmentHtml = links,
+                lmsSession = validCookieSession(),
+            )
+
+        val extracted = extractor.extract(payload)
+
+        assertEquals(listOf("4.txt: total download limit exceeded"), extracted.skippedFiles)
+        verify(exactly = 0) { lmsCanvasClient.downloadFile(session, metadata.getValue(4L)) }
     }
 
     private fun validCookieSession(): LmsSessionRequest =

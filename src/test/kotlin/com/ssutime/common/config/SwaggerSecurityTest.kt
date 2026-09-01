@@ -31,6 +31,14 @@ class SwaggerSecurityTest {
                 status { isOk() }
                 jsonPath("$.info.title") { value("SSUTime API") }
                 jsonPath("$.components.securitySchemes.bearerAuth.type") { value("http") }
+                jsonPath("$.paths['/todo/todos/{statusId}/completion'].patch.summary") {
+                    value("사용자 할 일 완료 상태 변경")
+                }
+                jsonPath("$.paths['/todo/todos/{statusId}/completion'].patch.requestBody.content['application/json'].schema['\$ref']") {
+                    value("#/components/schemas/TodoCompletionRequest")
+                }
+                jsonPath("$.components.schemas.UserTodoStatus.properties.isManuallyCompleted.type") { value("boolean") }
+                jsonPath("$.components.schemas.UserTodoStatus.properties.manuallyCompleted") { doesNotExist() }
                 jsonPath("$.paths['/notifications/test-fcm'].post.summary") { value("FCM 메시지 dry-run 테스트") }
                 jsonPath("$.paths['/notifications/test-fcm'].post.description") {
                     value(org.hamcrest.Matchers.containsString("실제 마감 알림은 title"))
