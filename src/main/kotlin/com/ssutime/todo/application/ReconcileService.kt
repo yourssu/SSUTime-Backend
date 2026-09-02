@@ -1,6 +1,7 @@
 package com.ssutime.todo.application
 
 import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoStatus
 import com.ssutime.todo.domain.event.TodoConfirmed
 import com.ssutime.todo.domain.event.TodoReported
@@ -40,35 +41,20 @@ class ReconcileService(
                 event.materialCode,
                 since,
             )
-
-        val latestReportsByUser =
-            reports
-                .groupBy { it.userId }
-                .values
-                .mapNotNull { userReports -> userReports.maxByOrNull { it.reportedAt } }
+        val latestReportsByUser = selectLatestReportsByUser(reports)
 
         if (latestReportsByUser.size < QUORUM_SIZE) return
 
-        val majorityDueDate =
-            latestReportsByUser
-                .groupingBy { it.dueDate }
-                .eachCount()
-                .maxByOrNull { it.value }
-                ?.key ?: return
-        val majorityTitle =
-            latestReportsByUser
-                .groupingBy { it.title }
-                .eachCount()
-                .maxByOrNull { it.value }
-                ?.key ?: return
+        val mostFrequentDueDate = selectMostFrequentDueDate(latestReportsByUser) ?: return
+        val mostFrequentTitle = selectMostFrequentTitle(latestReportsByUser) ?: return
 
-        val dueDateChanged = todo.dueDate != majorityDueDate
+        val dueDateChanged = todo.dueDate != mostFrequentDueDate
         val wasProvisional = todo.status == TodoStatus.PROVISIONAL
 
         if (dueDateChanged) {
-            todo.updateDueDate(majorityDueDate)
+            todo.updateDueDate(mostFrequentDueDate)
         }
-        todo.title = majorityTitle
+        todo.title = mostFrequentTitle
 
         if (dueDateChanged) {
             userTodoStatusRepository.findAllByTodo(todo).forEach { status ->
@@ -93,4 +79,24 @@ class ReconcileService(
             todoRepository.save(todo)
         }
     }
+
+    private fun selectLatestReportsByUser(reports: List<TodoReport>): List<TodoReport> =
+        reports
+            .groupBy { it.userId }
+            .values
+            .mapNotNull { userReports -> userReports.maxByOrNull { it.reportedAt } }
+
+    private fun selectMostFrequentDueDate(reports: List<TodoReport>): LocalDateTime? =
+        reports
+            .groupingBy { it.dueDate }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+
+    private fun selectMostFrequentTitle(reports: List<TodoReport>): String? =
+        reports
+            .groupingBy { it.title }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
 }
