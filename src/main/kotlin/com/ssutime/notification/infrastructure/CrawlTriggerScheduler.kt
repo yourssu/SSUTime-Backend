@@ -6,8 +6,9 @@ import com.ssutime.auth.infrastructure.UserRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.MonthDay
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -24,9 +25,10 @@ class CrawlTriggerScheduler(
     @Scheduled(fixedRate = 60_000)
     fun triggerCrawl() {
         val zoneId = ZoneId.of(crawlTriggerZoneId)
-        if (!isAutomaticCrawlAllowed(ZonedDateTime.now(zoneId).toLocalTime())) return
+        val now = ZonedDateTime.now(zoneId)
+        if (!isAutomaticCrawlAllowed(now.toLocalDate(), now.toLocalTime())) return
 
-        val epochMinute = Instant.now().epochSecond / 60
+        val epochMinute = now.toInstant().epochSecond / 60
         userRepository
             .findAll()
             .filter { shouldTriggerCrawlForUser(it.id, crawlTriggerIntervalMinutes, epochMinute) }
@@ -42,7 +44,22 @@ class CrawlTriggerScheduler(
     }
 }
 
-internal fun isAutomaticCrawlAllowed(localTime: LocalTime): Boolean = !localTime.isBefore(LocalTime.of(6, 0))
+private val FIRST_SEMESTER_START = MonthDay.of(3, 2)
+private val FIRST_SEMESTER_END = MonthDay.of(7, 21)
+private val SECOND_SEMESTER_START = MonthDay.of(9, 1)
+private val SECOND_SEMESTER_END = MonthDay.of(1, 21)
+
+internal fun isAutomaticCrawlAllowed(
+    localDate: LocalDate,
+    localTime: LocalTime,
+): Boolean = isSemesterInSession(localDate) && !localTime.isBefore(LocalTime.of(6, 0))
+
+internal fun isSemesterInSession(localDate: LocalDate): Boolean {
+    val monthDay = MonthDay.from(localDate)
+    val isFirstSemester = monthDay >= FIRST_SEMESTER_START && monthDay <= FIRST_SEMESTER_END
+    val isSecondSemester = monthDay >= SECOND_SEMESTER_START || monthDay <= SECOND_SEMESTER_END
+    return isFirstSemester || isSecondSemester
+}
 
 internal fun shouldTriggerCrawlForUser(
     userId: Long,
