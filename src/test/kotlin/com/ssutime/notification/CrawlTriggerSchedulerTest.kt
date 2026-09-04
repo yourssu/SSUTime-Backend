@@ -1,11 +1,22 @@
 package com.ssutime.notification
 
+import com.ssutime.notification.infrastructure.isAutomaticCrawlAllowed
 import com.ssutime.notification.infrastructure.shouldTriggerCrawlForUser
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.LocalTime
 
 class CrawlTriggerSchedulerTest {
+    @Test
+    fun `automatic crawl is blocked from midnight until 6 AM`() {
+        assertFalse(isAutomaticCrawlAllowed(LocalTime.MIDNIGHT))
+        assertFalse(isAutomaticCrawlAllowed(LocalTime.of(3, 0)))
+        assertFalse(isAutomaticCrawlAllowed(LocalTime.of(5, 59, 59)))
+        assertTrue(isAutomaticCrawlAllowed(LocalTime.of(6, 0)))
+        assertTrue(isAutomaticCrawlAllowed(LocalTime.of(23, 59, 59)))
+    }
+
     @Test
     fun `shouldTriggerCrawlForUser - interval 1 sends every user every minute`() {
         assertTrue(

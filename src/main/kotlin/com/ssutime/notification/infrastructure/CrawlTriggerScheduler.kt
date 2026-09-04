@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 @Component
 class CrawlTriggerScheduler(
@@ -15,9 +18,14 @@ class CrawlTriggerScheduler(
     private val fcmClient: FcmClient,
     @Value("\${notification.crawl-trigger.interval-minutes:15}")
     private val crawlTriggerIntervalMinutes: Long,
+    @Value("\${notification.crawl-trigger.zone-id:Asia/Seoul}")
+    private val crawlTriggerZoneId: String,
 ) {
     @Scheduled(fixedRate = 60_000)
     fun triggerCrawl() {
+        val zoneId = ZoneId.of(crawlTriggerZoneId)
+        if (!isAutomaticCrawlAllowed(ZonedDateTime.now(zoneId).toLocalTime())) return
+
         val epochMinute = Instant.now().epochSecond / 60
         userRepository
             .findAll()
@@ -33,6 +41,8 @@ class CrawlTriggerScheduler(
             }
     }
 }
+
+internal fun isAutomaticCrawlAllowed(localTime: LocalTime): Boolean = !localTime.isBefore(LocalTime.of(6, 0))
 
 internal fun shouldTriggerCrawlForUser(
     userId: Long,
