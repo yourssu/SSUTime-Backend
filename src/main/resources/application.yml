@@ -30,6 +30,7 @@ fcm:
 notification:
   crawl-trigger:
     interval-minutes: ${CRAWL_TRIGGER_INTERVAL_MINUTES:15}
+    zone-id: ${CRAWL_TRIGGER_ZONE_ID:Asia/Seoul}
 
 anthropic:
   enabled: ${ANTHROPIC_ENABLED:false}
