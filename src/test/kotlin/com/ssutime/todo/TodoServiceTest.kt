@@ -313,6 +313,17 @@ class TodoServiceTest {
     }
 
     @Test
+    fun `processReport - 벌크 업데이트 직후에도 같은 트랜잭션에서 최신 첨부파일 링크를 읽는다`() {
+        val todo = stubExistingTodoReport()
+        val links = listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download")
+        every { todoRepository.updateAttachmentLinks(any(), any()) } returns 1
+
+        val result = reportWithLinks(links)
+
+        assertEquals(links, result.attachmentLinks)
+    }
+
+    @Test
     fun `processReport - 첨부파일 링크 없이 제보되면 링크를 갱신하지 않는다`() {
         stubExistingTodoReport()
 

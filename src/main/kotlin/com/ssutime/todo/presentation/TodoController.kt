@@ -62,7 +62,9 @@ class TodoController(
         @AuthenticationPrincipal userId: Long,
         @RequestBody request: TodoReportWithAnalysisRequest,
     ): ResponseEntity<AssignmentAnalysisResponse> {
-        val attachmentLinks = assignmentAnalysisPreparationService.extractAttachmentLinks(request.assignmentAnalysis)
+        // assignmentHtml 파싱/검증 실패(예: 크기 초과)가 있어도 본인 제보는 항상 즉시 저장되어야 한다.
+        val attachmentLinks =
+            runCatching { assignmentAnalysisPreparationService.extractAttachmentLinks(request.assignmentAnalysis) }.getOrNull()
         val todo =
             todoService.processReport(
                 userId = userId,

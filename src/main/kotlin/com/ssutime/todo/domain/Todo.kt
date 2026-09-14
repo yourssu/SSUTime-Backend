@@ -51,6 +51,12 @@ class Todo private constructor(
     val attachmentLinks: List<String>
         get() = attachmentLinksText?.split(ATTACHMENT_LINK_SEPARATOR)?.filter { it.isNotBlank() }.orEmpty()
 
+    // TodoRepository.updateAttachmentLinks()는 @Version을 올리지 않는 벌크 UPDATE라 영속성 컨텍스트가 갱신되지 않는다.
+    // 같은 트랜잭션에서 이 관리 상태 인스턴스를 계속 읽는 호출부(prepareAnalysis 등)가 stale 값을 보지 않도록 직접 동기화한다.
+    internal fun syncAttachmentLinksText(text: String?) {
+        attachmentLinksText = text
+    }
+
     fun confirm() {
         status = TodoStatus.CONFIRMED
     }

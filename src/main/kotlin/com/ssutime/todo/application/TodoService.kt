@@ -64,7 +64,11 @@ class TodoService(
                 ?: todoRepository.save(Todo.create(subjectId, materialCode, todoType, dueDate, title))
         attachmentLinks
             ?.takeIf { it.isNotEmpty() && it != todo.attachmentLinks }
-            ?.let { todoRepository.updateAttachmentLinks(todo.id, Todo.joinAttachmentLinks(it)) }
+            ?.let {
+                val joinedLinks = Todo.joinAttachmentLinks(it)
+                todoRepository.updateAttachmentLinks(todo.id, joinedLinks)
+                todo.syncAttachmentLinksText(joinedLinks)
+            }
 
         val existingStatus = userTodoStatusRepository.findByUserIdAndTodo(userId, todo)
         val status =

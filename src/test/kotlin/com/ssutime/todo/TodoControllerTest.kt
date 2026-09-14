@@ -56,4 +56,15 @@ class TodoControllerTest {
 
         verify { todoService.processReport(userId, 10L, 20L, TodoType.ASSIGNMENT, dueDate, "실습과제 3", links) }
     }
+
+    @Test
+    fun `reportWithAnalysis still saves the report when attachment link extraction fails`() {
+        every { preparationService.extractAttachmentLinks(payload) } throws InvalidRequestException("assignmentHtml is too large")
+        every { todoService.processReport(any(), any(), any(), any(), any(), any(), any()) } returns todo
+        every { preparationService.prepareAnalysis(todo, payload) } throws InvalidRequestException("assignmentHtml is too large")
+
+        assertFailsWith<InvalidRequestException> { controller.reportWithAnalysis(userId, request) }
+
+        verify { todoService.processReport(userId, 10L, 20L, TodoType.ASSIGNMENT, dueDate, "실습과제 3", null) }
+    }
 }
