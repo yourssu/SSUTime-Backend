@@ -4,6 +4,7 @@ import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.common.exception.UnauthorizedException
 import com.ssutime.todo.domain.Todo
+import com.ssutime.todo.domain.TodoAttachment
 import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.domain.UserTodoStatus
@@ -32,7 +33,7 @@ class TodoService(
         type: TodoType,
         dueDate: LocalDateTime,
         title: String,
-        attachmentLinks: List<String>? = null,
+        attachmentLinks: List<TodoAttachment>? = null,
     ): Todo {
         val user =
             userRepository

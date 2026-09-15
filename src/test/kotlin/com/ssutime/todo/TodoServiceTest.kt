@@ -5,6 +5,7 @@ import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.UnauthorizedException
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
+import com.ssutime.todo.domain.TodoAttachment
 import com.ssutime.todo.domain.TodoReport
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.domain.UserTodoStatus
@@ -303,24 +304,24 @@ class TodoServiceTest {
     @Test
     fun `processReport - 새 첨부파일 링크가 전달되면 버전을 올리지 않는 쿼리로 저장한다`() {
         val todo = stubExistingTodoReport()
-        val links = listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download")
+        val attachments = listOf(TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "guide.pdf"))
         every { todoRepository.updateAttachmentLinks(any(), any()) } returns 1
 
-        reportWithLinks(links)
+        reportWithLinks(attachments)
 
-        verify { todoRepository.updateAttachmentLinks(todo.id, Todo.joinAttachmentLinks(links)) }
+        verify { todoRepository.updateAttachmentLinks(todo.id, Todo.joinAttachmentLinks(attachments)) }
         verify(exactly = 0) { todoRepository.save(any()) }
     }
 
     @Test
     fun `processReport - 벌크 업데이트 직후에도 같은 트랜잭션에서 최신 첨부파일 링크를 읽는다`() {
         val todo = stubExistingTodoReport()
-        val links = listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download")
+        val attachments = listOf(TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "guide.pdf"))
         every { todoRepository.updateAttachmentLinks(any(), any()) } returns 1
 
-        val result = reportWithLinks(links)
+        val result = reportWithLinks(attachments)
 
-        assertEquals(links, result.attachmentLinks)
+        assertEquals(attachments, result.attachmentLinks)
     }
 
     @Test
@@ -334,7 +335,10 @@ class TodoServiceTest {
 
     @Test
     fun `processReport - 빈 첨부파일 링크는 기존 링크를 지우지 않는다`() {
-        stubExistingTodoReport().setAttachmentLinksForTest(listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download"))
+        stubExistingTodoReport()
+            .setAttachmentLinksForTest(
+                listOf(TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "guide.pdf")),
+            )
 
         reportWithLinks(emptyList())
 
@@ -343,10 +347,10 @@ class TodoServiceTest {
 
     @Test
     fun `processReport - 기존과 같은 첨부파일 링크면 갱신 쿼리를 생략한다`() {
-        val links = listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download")
-        stubExistingTodoReport().setAttachmentLinksForTest(links)
+        val attachments = listOf(TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "guide.pdf"))
+        stubExistingTodoReport().setAttachmentLinksForTest(attachments)
 
-        reportWithLinks(links)
+        reportWithLinks(attachments)
 
         verify(exactly = 0) { todoRepository.updateAttachmentLinks(any(), any()) }
     }
@@ -360,7 +364,7 @@ class TodoServiceTest {
         return todo
     }
 
-    private fun reportWithLinks(attachmentLinks: List<String>?) =
+    private fun reportWithLinks(attachmentLinks: List<TodoAttachment>?) =
         todoService.processReport(
             userId,
             subjectId,

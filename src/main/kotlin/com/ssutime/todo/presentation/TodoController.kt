@@ -88,7 +88,7 @@ class TodoController(
         summary = "사용자 할 일 목록 조회",
         description =
             "인증된 사용자의 할 일 상태를 조회합니다. 완료 여부와 알림 예정 시각 관련 필드가 포함됩니다. " +
-                "첨부파일이 있는 과제는 todo.attachmentLinks에 Canvas 첨부파일 다운로드 링크 배열이 담기며, 없으면 빈 배열입니다.",
+                "첨부파일이 있는 과제는 todo.attachmentLinks에 url/fileName/extension을 담은 객체 배열이 담기며, 없으면 빈 배열입니다.",
     )
     fun getTodos(
         @Parameter(hidden = true)

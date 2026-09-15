@@ -1,6 +1,7 @@
 package com.ssutime.todo
 
 import com.ssutime.todo.domain.Todo
+import com.ssutime.todo.domain.TodoAttachment
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.infrastructure.TodoRepository
 import org.junit.jupiter.api.Test
@@ -24,18 +25,18 @@ class TodoRepositoryTest
                     Todo.create(10L, 20L, TodoType.ASSIGNMENT, LocalDateTime.of(2026, 9, 20, 23, 59), "실습과제 3"),
                 )
             val versionBefore = todo.version
-            val links =
+            val attachments =
                 listOf(
-                    "https://canvas.ssu.ac.kr/courses/44383/files/1/download",
-                    "https://canvas.ssu.ac.kr/courses/44383/files/2/download",
+                    TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "guide.pdf"),
+                    TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/2/download", fileName = "data.zip"),
                 )
 
-            val updatedRows = todoRepository.updateAttachmentLinks(todo.id, Todo.joinAttachmentLinks(links))
+            val updatedRows = todoRepository.updateAttachmentLinks(todo.id, Todo.joinAttachmentLinks(attachments))
             entityManager.clear()
             val reloaded = todoRepository.findById(todo.id).orElseThrow()
 
             assertEquals(1, updatedRows)
-            assertEquals(links, reloaded.attachmentLinks)
+            assertEquals(attachments, reloaded.attachmentLinks)
             assertEquals(versionBefore, reloaded.version)
         }
     }

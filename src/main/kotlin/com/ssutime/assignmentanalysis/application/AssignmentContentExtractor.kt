@@ -2,6 +2,7 @@ package com.ssutime.assignmentanalysis.application
 
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.common.exception.InvalidRequestException
+import com.ssutime.todo.domain.TodoAttachment
 import org.springframework.stereotype.Component
 
 @Component
@@ -28,12 +29,12 @@ class AssignmentContentExtractor(
         )
     }
 
-    fun extractAttachmentLinks(payload: AssignmentAnalysisPayload): List<String> =
+    fun extractAttachmentLinks(payload: AssignmentAnalysisPayload): List<TodoAttachment> =
         htmlParser
             .parse(payload.assignmentHtml)
             .fileLinks
             .filter { link -> validateCourse(payload, link) == null }
-            .map { link -> link.downloadUrl(payload.courseId) }
+            .map { link -> TodoAttachment(url = link.downloadUrl(payload.courseId), fileName = link.label) }
 
     private fun processAttachments(
         payload: AssignmentAnalysisPayload,

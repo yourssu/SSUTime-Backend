@@ -8,6 +8,7 @@ import com.ssutime.assignmentanalysis.presentation.TodoReportWithAnalysisRequest
 import com.ssutime.common.exception.InvalidRequestException
 import com.ssutime.todo.application.TodoService
 import com.ssutime.todo.domain.Todo
+import com.ssutime.todo.domain.TodoAttachment
 import com.ssutime.todo.domain.TodoType
 import com.ssutime.todo.presentation.TodoController
 import io.mockk.every
@@ -28,7 +29,7 @@ class TodoControllerTest {
     private val payload = AssignmentAnalysisPayload(44383L, 718158L, "<a href=\"/courses/44383/files/1/download\">f.pdf</a>")
     private val request = TodoReportWithAnalysisRequest(10L, 20L, TodoType.ASSIGNMENT, dueDate, "실습과제 3", payload)
     private val todo = Todo.create(10L, 20L, TodoType.ASSIGNMENT, dueDate, "실습과제 3")
-    private val links = listOf("https://canvas.ssu.ac.kr/courses/44383/files/1/download")
+    private val links = listOf(TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/1/download", fileName = "f.pdf"))
 
     @Test
     fun `reportWithAnalysis saves extracted attachment links with the report before preparing analysis`() {

@@ -12,6 +12,7 @@ import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.assignmentanalysis.presentation.LmsSessionCookieRequest
 import com.ssutime.assignmentanalysis.presentation.LmsSessionRequest
 import com.ssutime.common.exception.InvalidRequestException
+import com.ssutime.todo.domain.TodoAttachment
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -68,8 +69,8 @@ class AssignmentContentExtractorTest {
 
         assertEquals(
             listOf(
-                "https://canvas.ssu.ac.kr/courses/44383/files/4322266/download",
-                "https://canvas.ssu.ac.kr/courses/44383/files/4550358/download",
+                TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/4322266/download", fileName = "project#2-1.zip"),
+                TodoAttachment(url = "https://canvas.ssu.ac.kr/courses/44383/files/4550358/download", fileName = "guide.pdf"),
             ),
             links,
         )
