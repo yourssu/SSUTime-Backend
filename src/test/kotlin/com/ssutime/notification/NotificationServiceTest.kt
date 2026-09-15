@@ -17,7 +17,15 @@ import java.util.Optional
 class NotificationServiceTest {
     private val fcmClient: FcmClient = mockk(relaxed = true)
     private val userTodoStatusRepository: UserTodoStatusRepository = mockk()
-    private val notificationService = NotificationService(fcmClient, userTodoStatusRepository)
+    private val notificationService =
+        NotificationService(
+            fcmClient = fcmClient,
+            userTodoStatusRepository = userTodoStatusRepository,
+            userRepository = mockk(),
+            userDeviceRepository = mockk(),
+            userBoardReceiptRepository = mockk(),
+            eventPublisher = mockk(),
+        )
 
     private val dueDate = LocalDateTime.of(2026, 5, 10, 23, 59)
     private val todo = Todo.create(10L, 100001L, TodoType.ASSIGNMENT, dueDate, "테스트 과제")

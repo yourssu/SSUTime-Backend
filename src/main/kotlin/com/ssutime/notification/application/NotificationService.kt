@@ -1,8 +1,17 @@
 package com.ssutime.notification.application
 
+import com.ssutime.auth.infrastructure.UserDeviceRepository
+import com.ssutime.auth.infrastructure.UserRepository
+import com.ssutime.common.exception.InvalidRequestException
+import com.ssutime.common.exception.ResourceNotFoundException
+import com.ssutime.notification.domain.BoardReport
+import com.ssutime.notification.domain.UserBoardReceipt
 import com.ssutime.notification.domain.event.DeadlineApproaching
+import com.ssutime.notification.domain.event.NewBoardDetected
 import com.ssutime.notification.infrastructure.FcmClient
+import com.ssutime.notification.infrastructure.UserBoardReceiptRepository
 import com.ssutime.todo.infrastructure.UserTodoStatusRepository
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,7 +22,42 @@ import org.springframework.transaction.event.TransactionalEventListener
 class NotificationService(
     private val fcmClient: FcmClient,
     private val userTodoStatusRepository: UserTodoStatusRepository,
+    private val userRepository: UserRepository,
+    private val userDeviceRepository: UserDeviceRepository,
+    private val userBoardReceiptRepository: UserBoardReceiptRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
+    @Transactional
+    fun reportBoards(
+        userId: Long,
+        request: BoardReport,
+    ) {
+        request.validate()
+        // Serialize reports across devices/server instances before reading the seen IDs.
+        val user = userRepository.findByIdForBoardReport(userId) ?: throw ResourceNotFoundException("사용자를 찾을 수 없습니다")
+        if (userDeviceRepository.findByUserAndFcmToken(user, request.fcmToken) == null) {
+            throw InvalidRequestException("현재 사용자의 기기 토큰을 /auth/devices에 먼저 등록해주세요")
+        }
+        val boards = request.boards.distinctBy { it.id }
+        if (boards.isEmpty()) return
+        val seenIds = userBoardReceiptRepository.findAllByUserIdAndBoardIdIn(userId, boards.map { it.id }).map { it.boardId }.toSet()
+        boards.filterNot { it.id in seenIds }.forEach { board ->
+            userBoardReceiptRepository.save(UserBoardReceipt(user = user, boardId = board.id))
+            if (board.isWritableByStudent()) {
+                eventPublisher.publishEvent(NewBoardDetected(request.fcmToken, board.title))
+            }
+        }
+    }
+
+    @Async("taskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onNewBoardDetected(event: NewBoardDetected) {
+        fcmClient.sendSilentPush(
+            fcmToken = event.fcmToken,
+            data = mapOf("title" to event.title, "type" to "newBoard"),
+        )
+    }
+
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onDeadlineApproaching(event: DeadlineApproaching) {
