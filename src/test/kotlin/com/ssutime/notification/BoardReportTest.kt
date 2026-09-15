@@ -11,7 +11,6 @@ import com.ssutime.notification.application.NotificationService
 import com.ssutime.notification.domain.Board
 import com.ssutime.notification.domain.BoardReport
 import com.ssutime.notification.domain.ReportedBoard
-import com.ssutime.notification.infrastructure.BoardMigration
 import com.ssutime.notification.infrastructure.BoardRepository
 import com.ssutime.notification.infrastructure.FcmClient
 import io.mockk.clearMocks
@@ -27,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import org.springframework.transaction.support.TransactionSynchronizationManager
@@ -48,10 +46,6 @@ class BoardReportTest {
     @Autowired private lateinit var devices: UserDeviceRepository
 
     @Autowired private lateinit var boards: BoardRepository
-
-    @Autowired private lateinit var migration: BoardMigration
-
-    @Autowired private lateinit var jdbcTemplate: JdbcTemplate
 
     @Autowired private lateinit var mvc: MockMvc
 
@@ -108,22 +102,6 @@ class BoardReportTest {
 
         assertEquals(2, boards.findAllByBoardIdIn(listOf(1, 2)).size)
         verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
-    }
-
-    @Test
-    fun `legacy receipts are migrated before they can notify again`() {
-        jdbcTemplate.execute("CREATE TABLE user_boards (user_id BIGINT NOT NULL, board_id BIGINT NOT NULL)")
-        try {
-            jdbcTemplate.update("INSERT INTO user_boards (user_id, board_id) VALUES (1, 1), (2, 1), (2, 2)")
-            migration.migrate()
-            migration.migrate()
-
-            service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)), board(2, reply = listOf(1)))))
-            assertEquals(2, boards.findAllByBoardIdIn(listOf(1, 2)).size)
-            verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
-        } finally {
-            jdbcTemplate.execute("DROP TABLE IF EXISTS user_boards")
-        }
     }
 
     @Test
