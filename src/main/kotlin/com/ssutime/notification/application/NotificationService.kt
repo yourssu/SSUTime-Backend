@@ -5,11 +5,10 @@ import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.InvalidRequestException
 import com.ssutime.common.exception.ResourceNotFoundException
 import com.ssutime.notification.domain.BoardReport
-import com.ssutime.notification.domain.UserBoardReceipt
 import com.ssutime.notification.domain.event.DeadlineApproaching
 import com.ssutime.notification.domain.event.NewBoardDetected
+import com.ssutime.notification.infrastructure.BoardRepository
 import com.ssutime.notification.infrastructure.FcmClient
-import com.ssutime.notification.infrastructure.UserBoardReceiptRepository
 import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.scheduling.annotation.Async
@@ -24,7 +23,7 @@ class NotificationService(
     private val userTodoStatusRepository: UserTodoStatusRepository,
     private val userRepository: UserRepository,
     private val userDeviceRepository: UserDeviceRepository,
-    private val userBoardReceiptRepository: UserBoardReceiptRepository,
+    private val boardRepository: BoardRepository,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
@@ -33,17 +32,14 @@ class NotificationService(
         request: BoardReport,
     ) {
         request.validate()
-        // Serialize reports across devices/server instances before reading the seen IDs.
-        val user = userRepository.findByIdForBoardReport(userId) ?: throw ResourceNotFoundException("사용자를 찾을 수 없습니다")
+        val user = userRepository.findById(userId).orElseThrow { ResourceNotFoundException("사용자를 찾을 수 없습니다") }
         if (userDeviceRepository.findByUserAndFcmToken(user, request.fcmToken) == null) {
             throw InvalidRequestException("현재 사용자의 기기 토큰을 /auth/devices에 먼저 등록해주세요")
         }
         val boards = request.boards.distinctBy { it.id }
         if (boards.isEmpty()) return
-        val seenIds = userBoardReceiptRepository.findAllByUserIdAndBoardIdIn(userId, boards.map { it.id }).map { it.boardId }.toSet()
-        boards.filterNot { it.id in seenIds }.forEach { board ->
-            userBoardReceiptRepository.save(UserBoardReceipt(user = user, boardId = board.id))
-            if (board.isWritableByStudent()) {
+        boards.forEach { board ->
+            if (boardRepository.insertIfAbsent(board.id) == 1 && board.isWritableByStudent()) {
                 eventPublisher.publishEvent(NewBoardDetected(request.fcmToken, board.title))
             }
         }

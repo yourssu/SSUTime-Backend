@@ -23,7 +23,7 @@ class NotificationServiceTest {
             userTodoStatusRepository = userTodoStatusRepository,
             userRepository = mockk(),
             userDeviceRepository = mockk(),
-            userBoardReceiptRepository = mockk(),
+            boardRepository = mockk(),
             eventPublisher = mockk(),
         )
 

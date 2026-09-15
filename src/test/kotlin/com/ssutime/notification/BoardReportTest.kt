@@ -8,10 +8,11 @@ import com.ssutime.auth.infrastructure.UserDeviceRepository
 import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.InvalidRequestException
 import com.ssutime.notification.application.NotificationService
+import com.ssutime.notification.domain.Board
 import com.ssutime.notification.domain.BoardReport
 import com.ssutime.notification.domain.ReportedBoard
+import com.ssutime.notification.infrastructure.BoardRepository
 import com.ssutime.notification.infrastructure.FcmClient
-import com.ssutime.notification.infrastructure.UserBoardReceiptRepository
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.verify
@@ -44,7 +45,7 @@ class BoardReportTest {
 
     @Autowired private lateinit var devices: UserDeviceRepository
 
-    @Autowired private lateinit var boards: UserBoardReceiptRepository
+    @Autowired private lateinit var boards: BoardRepository
 
     @Autowired private lateinit var mvc: MockMvc
 
@@ -61,13 +62,14 @@ class BoardReportTest {
     @BeforeEach
     fun setUp() {
         clearMocks(fcm)
+        boards.deleteAll()
         user = users.save(User.create(UUID.randomUUID().toString(), "20****01"))
         token = "device-${user.id}"
         devices.save(UserDevice.create(user, token))
     }
 
     @Test
-    fun `only first receipt of post or reply writable boards sends to requesting device`() {
+    fun `only first global receipt of post or reply writable boards sends to requesting device`() {
         devices.save(UserDevice.create(user, "other-device-${user.id}"))
         val items = listOf(board(1, post = listOf(1)), board(2, reply = listOf(1)), board(3))
         service.reportBoards(user.id, BoardReport(token, items + items.first()))
@@ -77,17 +79,29 @@ class BoardReportTest {
         verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, mapOf("title" to "Board 1", "type" to "newBoard")) }
         verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, mapOf("title" to "Board 2", "type" to "newBoard")) }
         verify(exactly = 2) { fcm.sendSilentPush(any(), any()) }
-        assertEquals(3, boards.findAllByUserIdAndBoardIdIn(user.id, listOf(1, 2, 3)).size)
+        assertEquals(3, boards.findAllByBoardIdIn(listOf(1, 2, 3)).size)
     }
 
     @Test
-    fun `same board is new for each user`() {
+    fun `same board is recorded globally and does not notify a second user`() {
         val other = users.save(User.create(UUID.randomUUID().toString(), "20****02"))
         devices.save(UserDevice.create(other, "second-token"))
         service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)))))
         service.reportBoards(other.id, BoardReport("second-token", listOf(board(1, post = listOf(1)))))
         verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, any()) }
-        verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush("second-token", any()) }
+        verify(exactly = 0) { fcm.sendSilentPush("second-token", any()) }
+        assertEquals(1, boards.findAllByBoardIdIn(listOf(1)).size)
+    }
+
+    @Test
+    fun `existing board id stays silent even when writable permissions change`() {
+        boards.save(Board(boardId = 1))
+        service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)))))
+        service.reportBoards(user.id, BoardReport(token, listOf(board(2))))
+        service.reportBoards(user.id, BoardReport(token, listOf(board(2, reply = listOf(1)))))
+
+        assertEquals(2, boards.findAllByBoardIdIn(listOf(1, 2)).size)
+        verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
     }
 
     @Test
@@ -95,7 +109,7 @@ class BoardReportTest {
         assertThrows<InvalidRequestException> {
             service.reportBoards(user.id, BoardReport("unknown-token", listOf(board(1, post = listOf(1)))))
         }
-        assertEquals(0, boards.findAllByUserIdAndBoardIdIn(user.id, listOf(1)).size)
+        assertEquals(0, boards.findAllByBoardIdIn(listOf(1)).size)
         verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
     }
 
@@ -120,7 +134,7 @@ class BoardReportTest {
                 service.reportBoards(user.id, BoardReport(" ", listOf(valid)))
             }
         assertEquals("fcmToken은 필수입니다", exception.message)
-        assertEquals(0, boards.findAllByUserIdAndBoardIdIn(user.id, listOf(1)).size)
+        assertEquals(0, boards.findAllByBoardIdIn(listOf(1)).size)
         verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
     }
 
@@ -158,28 +172,29 @@ class BoardReportTest {
             service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)))))
             status.setRollbackOnly()
         }
-        assertEquals(0, boards.findAllByUserIdAndBoardIdIn(user.id, listOf(1)).size)
+        assertEquals(0, boards.findAllByBoardIdIn(listOf(1)).size)
         verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
     }
 
     @Test
-    fun `concurrent reports from two devices send once`() {
-        val otherToken = "concurrent-${user.id}"
-        devices.save(UserDevice.create(user, otherToken))
+    fun `concurrent reports from different users store and send once`() {
+        val other = users.save(User.create(UUID.randomUUID().toString(), "20****02"))
+        val otherToken = "concurrent-${other.id}"
+        devices.save(UserDevice.create(other, otherToken))
         val executor = Executors.newFixedThreadPool(2)
         val start = CountDownLatch(1)
         try {
             val futures =
-                listOf(token, otherToken).map { target ->
+                listOf(user.id to token, other.id to otherToken).map { (reporterId, target) ->
                     executor.submit {
                         start.await()
-                        service.reportBoards(user.id, BoardReport(target, listOf(board(1, post = listOf(1)))))
+                        service.reportBoards(reporterId, BoardReport(target, listOf(board(1, post = listOf(1)))))
                     }
                 }
             start.countDown()
             futures.forEach { it.get(10, TimeUnit.SECONDS) }
             verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(any(), mapOf("title" to "Board 1", "type" to "newBoard")) }
-            assertEquals(1, boards.findAllByUserIdAndBoardIdIn(user.id, listOf(1)).size)
+            assertEquals(1, boards.findAllByBoardIdIn(listOf(1)).size)
         } finally {
             executor.shutdownNow()
         }
