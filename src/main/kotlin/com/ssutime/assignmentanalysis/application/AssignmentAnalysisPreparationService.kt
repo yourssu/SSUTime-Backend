@@ -6,6 +6,7 @@ import com.ssutime.assignmentanalysis.infrastructure.AssignmentAnalysisRepositor
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisResponse
 import com.ssutime.todo.domain.Todo
+import com.ssutime.todo.domain.TodoAttachment
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -50,6 +51,8 @@ class AssignmentAnalysisPreparationService(
             skippedFiles = analysis.skippedFiles.lines().filter { it.isNotBlank() },
         )
     }
+
+    fun extractAttachmentLinks(payload: AssignmentAnalysisPayload): List<TodoAttachment> = contentExtractor.extractAttachmentLinks(payload)
 
     private fun sha256(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
