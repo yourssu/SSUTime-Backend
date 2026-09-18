@@ -1,5 +1,6 @@
 package com.ssutime.notification.application
 
+import com.google.firebase.messaging.FirebaseMessagingException
 import com.ssutime.auth.infrastructure.UserDeviceRepository
 import com.ssutime.auth.infrastructure.UserRepository
 import com.ssutime.common.exception.InvalidRequestException
@@ -195,7 +196,7 @@ class NotificationService(
         try {
             fcmClient.sendSilentPush(fcmToken, data)
             true
-        } catch (exception: Exception) {
+        } catch (exception: FirebaseMessagingException) {
             // A failed device must not prevent delivery to the remaining recipients.
             log.warn("Notification could not be sent ({})", exception.javaClass.simpleName, exception)
             false

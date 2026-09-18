@@ -1,5 +1,7 @@
 package com.ssutime.notification
 
+import com.google.firebase.ErrorCode
+import com.google.firebase.messaging.FirebaseMessagingException
 import com.ssutime.auth.domain.User
 import com.ssutime.auth.domain.UserDevice
 import com.ssutime.auth.infrastructure.UserDeviceRepository
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.LocalDate
 import java.time.ZoneId
@@ -132,13 +135,30 @@ class NotificationServiceTest {
     fun `failed device does not prevent other devices or notification types`() {
         every { devices.findAllByUser(user) } returns
             listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
-        every { fcm.sendSilentPush("broken", any()) } throws IllegalStateException("FCM unavailable")
+        // Firebase exposes no public constructor for messaging exceptions.
+        val failure =
+            FirebaseMessagingException::class.java
+                .getDeclaredConstructor(ErrorCode::class.java, String::class.java)
+                .apply { isAccessible = true }
+                .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
+        every { fcm.sendSilentPush("broken", any()) } throws failure
         val pending = listOf(item(1))
         every { statuses.findDeadlineNotifications(any(), any(), any()) } returns pending
         every { statuses.findNewNotifications(any(), any()) } returns pending
         service.sendEveningNotifications(today)
         assertEquals(2, messages.size)
         verify(atLeast = 1) { deliveries.release(any(), any()) }
+    }
+
+    @Test
+    fun `unexpected programming error is propagated instead of treated as delivery failure`() {
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        every { fcm.sendSilentPush(any(), any()) } throws IllegalStateException("Unexpected configuration error")
+
+        assertThrows<IllegalStateException> { service.sendMorningNotifications(today) }
+
+        verify(exactly = 0) { deliveries.markSent(any(), any()) }
+        verify(exactly = 0) { deliveries.release(any(), any()) }
     }
 
     @Test
