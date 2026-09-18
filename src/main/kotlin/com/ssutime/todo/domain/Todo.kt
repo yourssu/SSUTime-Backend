@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import jakarta.persistence.Version
@@ -18,6 +19,7 @@ import java.time.LocalDateTime
 @Table(
     name = "todo",
     uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])],
+    indexes = [Index(name = "idx_todo_due_date", columnList = "due_date")],
 )
 @DynamicUpdate
 class Todo private constructor(
