@@ -36,8 +36,40 @@ class NotificationQueryTest
             entityManager.clear()
             assertEquals(
                 listOf(included.id),
-                repository.findDeadlineNotifications(start, end).map { it.id },
+                repository.findDeadlineNotifications(start, end, included.createdAt.plusSeconds(1)).map { it.id },
             )
+        }
+
+        @Test
+        fun `deadline retry excludes items registered at or after scheduled cutoff`() {
+            val day = LocalDate.of(2026, 9, 18)
+            for (hour in listOf(9, 18)) {
+                val cutoff = day.atTime(hour, 0)
+                val due = day.plusDays(if (hour == 9) 0 else 1).atTime(23, 59)
+                val existing = status(due)
+                val atCutoff = status(due)
+                val late = status(due)
+                entityManager.flush()
+                for ((item, createdAt) in listOf(
+                    existing to cutoff.minusSeconds(1),
+                    atCutoff to cutoff,
+                    late to day.atTime(23, 1),
+                )) {
+                    entityManager.entityManager
+                        .createQuery("UPDATE UserTodoStatus u SET u.createdAt = :time WHERE u.id = :id")
+                        .setParameter("time", createdAt)
+                        .setParameter("id", item.id)
+                        .executeUpdate()
+                }
+                entityManager.clear()
+                val start = due.toLocalDate().atStartOfDay()
+                repeat(2) {
+                    assertEquals(
+                        listOf(existing.id),
+                        repository.findDeadlineNotifications(start, start.plusDays(1), cutoff).map { it.id },
+                    )
+                }
+            }
         }
 
         @Test

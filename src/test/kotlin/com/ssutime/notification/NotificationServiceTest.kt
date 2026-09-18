@@ -48,7 +48,7 @@ class NotificationServiceTest {
             messages.add(arg<Map<String, String>>(1))
             Unit
         }
-        every { statuses.findDeadlineNotifications(any(), any()) } returns emptyList()
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns emptyList()
         every { statuses.findNewNotifications(any(), any()) } returns emptyList()
         every { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) } returns 1
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 1
@@ -72,7 +72,7 @@ class NotificationServiceTest {
         val start = cutoff.minusDays(1).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
         val end = cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
         every {
-            statuses.findDeadlineNotifications(today.plusDays(1).atStartOfDay(), today.plusDays(4).atStartOfDay())
+            statuses.findDeadlineNotifications(today.plusDays(1).atStartOfDay(), today.plusDays(4).atStartOfDay(), end)
         } returns items
         every { statuses.findNewNotifications(start, end) } returns items
         service.sendEveningNotifications(today)
@@ -84,7 +84,13 @@ class NotificationServiceTest {
 
     @Test
     fun `morning sends each item with data for app rendering`() {
-        every { statuses.findDeadlineNotifications(today.atStartOfDay(), today.plusDays(1).atStartOfDay()) } returns
+        val cutoff =
+            today
+                .atTime(9, 0)
+                .atZone(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime()
+        every { statuses.findDeadlineNotifications(today.atStartOfDay(), today.plusDays(1).atStartOfDay(), cutoff) } returns
             listOf(item(0), item(0, TodoType.QUIZ))
         service.sendMorningNotifications(today)
         assertEquals(listOf("ASSIGNMENT", "QUIZ"), messages.map { it["todo_type"] })
@@ -94,7 +100,7 @@ class NotificationServiceTest {
 
     @Test
     fun `single lecture passes source data for client rendering`() {
-        every { statuses.findDeadlineNotifications(any(), any()) } returns listOf(item(2, TodoType.COMMONS))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(2, TodoType.COMMONS))
         every { statuses.findNewNotifications(any(), any()) } returns listOf(item(2, TodoType.COMMONS))
         service.sendEveningNotifications(today)
         assertTrue(messages.all { it["todo_type"] == "COMMONS" && it["todo_title"] == "제목" })
@@ -106,7 +112,7 @@ class NotificationServiceTest {
     fun `disabled user receives neither morning nor evening notifications`() {
         every { users.findById(1) } returns
             Optional.of(User(id = 1, authKey = "key", maskedStudentId = "20****01", notificationEnabled = false))
-        every { statuses.findDeadlineNotifications(any(), any()) } returns listOf(item(1))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
         every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
         service.sendMorningNotifications(today)
         service.sendEveningNotifications(today)
@@ -116,7 +122,7 @@ class NotificationServiceTest {
     @Test
     fun `missing subject does not abort remaining notifications`() {
         every { subjects.findAllById(any()) } returns emptyList()
-        every { statuses.findDeadlineNotifications(any(), any()) } returns listOf(item(0), item(0, TodoType.QUIZ))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0), item(0, TodoType.QUIZ))
         service.sendMorningNotifications(today)
         assertEquals(2, messages.size)
         assertTrue(messages.all { "subject_name" !in it })
@@ -128,7 +134,7 @@ class NotificationServiceTest {
             listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
         every { fcm.sendSilentPush("broken", any()) } throws IllegalStateException("FCM unavailable")
         val pending = listOf(item(1))
-        every { statuses.findDeadlineNotifications(any(), any()) } returns pending
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns pending
         every { statuses.findNewNotifications(any(), any()) } returns pending
         service.sendEveningNotifications(today)
         assertEquals(2, messages.size)
@@ -137,7 +143,7 @@ class NotificationServiceTest {
 
     @Test
     fun `same delivery slot is not sent twice`() {
-        every { statuses.findDeadlineNotifications(any(), any()) } returns listOf(item(1))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
         every {
             deliveries.claim(any(), "deadlineApproaching", today, "group", any(), any(), any())
         } returnsMany listOf(1, 0)
@@ -151,7 +157,7 @@ class NotificationServiceTest {
 
     @Test
     fun `single deadline includes actual id and original action`() {
-        every { statuses.findDeadlineNotifications(any(), any()) } returns listOf(item(1))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
         service.sendEveningNotifications(today)
         assertEquals(
             mapOf(

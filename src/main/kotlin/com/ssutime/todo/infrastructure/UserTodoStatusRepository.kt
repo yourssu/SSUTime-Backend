@@ -18,11 +18,12 @@ interface UserTodoStatusRepository : JpaRepository<UserTodoStatus, Long> {
 
     @Query(
         "SELECT u FROM UserTodoStatus u JOIN FETCH u.todo t " +
-            "WHERE u.isCompleted = false AND t.dueDate >= :start AND t.dueDate < :end",
+            "WHERE u.isCompleted = false AND t.dueDate >= :start AND t.dueDate < :end AND u.createdAt < :createdBefore",
     )
     fun findDeadlineNotifications(
         start: LocalDateTime,
         end: LocalDateTime,
+        createdBefore: LocalDateTime,
     ): List<UserTodoStatus>
 
     @Query(

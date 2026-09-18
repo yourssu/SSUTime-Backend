@@ -70,10 +70,12 @@ class NotificationService(
 
     @Async("taskExecutor")
     fun sendMorningNotifications(today: LocalDate) {
+        val cutoff = today.atTime(9, 0).atZone(ZoneId.of("Asia/Seoul"))
         sendTodoNotifications(
             userTodoStatusRepository.findDeadlineNotifications(
                 today.atStartOfDay(),
                 today.plusDays(1).atStartOfDay(),
+                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
             NotificationType.DUE_TODAY,
             today,
@@ -87,6 +89,7 @@ class NotificationService(
             userTodoStatusRepository.findDeadlineNotifications(
                 today.plusDays(1).atStartOfDay(),
                 today.plusDays(4).atStartOfDay(),
+                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
             NotificationType.DEADLINE_APPROACHING,
             today,
