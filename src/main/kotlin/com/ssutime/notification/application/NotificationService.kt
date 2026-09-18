@@ -39,8 +39,8 @@ class NotificationService(
         val boards = request.boards.distinctBy { it.id }
         if (boards.isEmpty()) return
         boards.forEach { board ->
-            if (boardRepository.insertIfAbsent(board.id) == 1 && board.isWritableByStudent()) {
-                eventPublisher.publishEvent(NewBoardDetected(request.fcmToken, board.title))
+            if (boardRepository.insertIfAbsent(board.id) == 1 && board.isWritableByStudent() && user.notificationEnabled) {
+                eventPublisher.publishEvent(NewBoardDetected(request.fcmToken, board.title, user.id))
             }
         }
     }
@@ -48,6 +48,9 @@ class NotificationService(
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onNewBoardDetected(event: NewBoardDetected) {
+        val user = userRepository.findById(event.userId).orElse(null) ?: return
+        if (!user.notificationEnabled) return
+        if (userDeviceRepository.findByUserAndFcmToken(user, event.fcmToken) == null) return
         fcmClient.sendSilentPush(
             fcmToken = event.fcmToken,
             data = mapOf("title" to event.title, "type" to "newBoard"),
