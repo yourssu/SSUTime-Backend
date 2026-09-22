@@ -76,8 +76,18 @@ class BoardReportTest {
         service.reportBoards(user.id, BoardReport(token, items.map { it.copy(totalPostCount = 20) }))
         service.reportBoards(user.id, BoardReport(token, listOf(board(3, post = listOf(1)))))
 
-        verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, mapOf("title" to "Board 1", "type" to "newBoard")) }
-        verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, mapOf("title" to "Board 2", "type" to "newBoard")) }
+        verify(timeout = 5000, exactly = 1) {
+            fcm.sendSilentPush(
+                token,
+                match { it["type"] == "newBoard" && it["title"] == "Board 1" },
+            )
+        }
+        verify(timeout = 5000, exactly = 1) {
+            fcm.sendSilentPush(
+                token,
+                match { it["type"] == "newBoard" && it["title"] == "Board 2" },
+            )
+        }
         verify(exactly = 2) { fcm.sendSilentPush(any(), any()) }
         assertEquals(3, boards.findAllByBoardIdIn(listOf(1, 2, 3)).size)
     }
@@ -193,7 +203,14 @@ class BoardReportTest {
                 }
             start.countDown()
             futures.forEach { it.get(10, TimeUnit.SECONDS) }
-            verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(any(), mapOf("title" to "Board 1", "type" to "newBoard")) }
+            verify(timeout = 5000, exactly = 1) {
+                fcm.sendSilentPush(
+                    any(),
+                    match {
+                        it["type"] == "newBoard" && it["title"] == "Board 1"
+                    },
+                )
+            }
             assertEquals(1, boards.findAllByBoardIdIn(listOf(1)).size)
         } finally {
             executor.shutdownNow()
@@ -222,7 +239,32 @@ class BoardReportTest {
                 contentType = MediaType.APPLICATION_JSON
                 content = body
             }.andExpect { status { isOk() } }
-        verify(timeout = 5000, exactly = 1) { fcm.sendSilentPush(token, mapOf("title" to "Q&A 게시판", "type" to "newBoard")) }
+        verify(timeout = 5000, exactly = 1) {
+            fcm.sendSilentPush(
+                token,
+                match { it["type"] == "newBoard" && it["title"] == "Q&A 게시판" },
+            )
+        }
+    }
+
+    @Test
+    fun `disabled user records board without sending notification`() {
+        user.notificationEnabled = false
+        users.save(user)
+        service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)))))
+        assertEquals(1, boards.findAllByBoardIdIn(listOf(1)).size)
+        verify(exactly = 0) { fcm.sendSilentPush(any(), any()) }
+    }
+
+    @Test
+    fun `notification disabled before commit suppresses board notification`() {
+        transactionTemplate.executeWithoutResult {
+            service.reportBoards(user.id, BoardReport(token, listOf(board(1, post = listOf(1)))))
+            val managedUser = users.findById(user.id).orElseThrow()
+            managedUser.notificationEnabled = false
+        }
+        verify(timeout = 500, exactly = 0) { fcm.sendSilentPush(any(), any()) }
+        assertEquals(1, boards.findAllByBoardIdIn(listOf(1)).size)
     }
 
     private fun board(

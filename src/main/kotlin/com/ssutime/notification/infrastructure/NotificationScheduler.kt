@@ -1,40 +1,32 @@
 package com.ssutime.notification.infrastructure
 
-import com.ssutime.auth.infrastructure.UserDeviceRepository
-import com.ssutime.auth.infrastructure.UserRepository
-import com.ssutime.notification.domain.event.DeadlineApproaching
-import com.ssutime.todo.infrastructure.UserTodoStatusRepository
-import org.springframework.context.ApplicationEventPublisher
+import com.ssutime.notification.application.NotificationService
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 @Component
 class NotificationScheduler(
-    private val userTodoStatusRepository: UserTodoStatusRepository,
-    private val userRepository: UserRepository,
-    private val userDeviceRepository: UserDeviceRepository,
-    private val applicationEventPublisher: ApplicationEventPublisher,
+    private val notificationService: NotificationService,
 ) {
-    @Scheduled(fixedRate = 60_000)
-    @Transactional(readOnly = true)
-    fun checkDeadlines() {
-        val pending = userTodoStatusRepository.findPendingNotifications(LocalDateTime.now())
-        pending.forEach { status ->
-            val user = userRepository.findById(status.userId).orElse(null) ?: return@forEach
-            if (!user.notificationEnabled) return@forEach
-            userDeviceRepository.findAllByUser(user).forEach { device ->
-                applicationEventPublisher.publishEvent(
-                    DeadlineApproaching(
-                        userTodoStatusId = status.id,
-                        userId = status.userId,
-                        todoId = status.todo.id,
-                        fcmToken = device.fcmToken,
-                        dueDate = status.todo.dueDate,
-                    ),
-                )
-            }
-        }
+    @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
+    fun sendMorningNotifications() = notificationService.sendMorningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
+
+    @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Seoul")
+    fun sendEveningNotifications() = notificationService.sendEveningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
+
+    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Seoul")
+    fun retryMissedNotifications() {
+        val now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
+        notificationService.sendMorningNotifications(latestScheduledDate(now, LocalTime.of(9, 0)))
+        notificationService.sendEveningNotifications(latestScheduledDate(now, LocalTime.of(18, 0)))
     }
 }
+
+internal fun latestScheduledDate(
+    now: ZonedDateTime,
+    scheduledTime: LocalTime,
+): LocalDate = if (now.toLocalTime().isBefore(scheduledTime)) now.toLocalDate().minusDays(1) else now.toLocalDate()
