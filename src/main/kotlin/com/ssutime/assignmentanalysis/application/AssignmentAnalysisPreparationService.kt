@@ -2,6 +2,7 @@ package com.ssutime.assignmentanalysis.application
 
 import com.ssutime.assignmentanalysis.domain.AssignmentAnalysis
 import com.ssutime.assignmentanalysis.domain.AssignmentAnalysisPrepared
+import com.ssutime.assignmentanalysis.domain.AssignmentAnalysisStatus
 import com.ssutime.assignmentanalysis.infrastructure.AssignmentAnalysisRepository
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisPayload
 import com.ssutime.assignmentanalysis.presentation.AssignmentAnalysisResponse
@@ -25,25 +26,34 @@ class AssignmentAnalysisPreparationService(
     ): AssignmentAnalysisResponse {
         val extracted = contentExtractor.extract(payload)
         val contentHash = sha256(extracted.sanitizedContent)
-        val analysis =
+        val existing =
             assignmentAnalysisRepository.findByTodoAndCourseIdAndAssignmentIdAndContentHash(
                 todo = todo,
                 courseId = payload.courseId,
                 assignmentId = payload.assignmentId,
                 contentHash = contentHash,
-            ) ?: assignmentAnalysisRepository
-                .save(
-                    AssignmentAnalysis.create(
-                        todo = todo,
-                        courseId = payload.courseId,
-                        assignmentId = payload.assignmentId,
-                        contentHash = contentHash,
-                        sanitizedContent = extracted.sanitizedContent,
-                        skippedFiles = extracted.skippedFiles.joinToString("\n"),
-                    ),
-                ).also { saved ->
-                    applicationEventPublisher.publishEvent(AssignmentAnalysisPrepared(saved.id))
+            )
+        val analysis =
+            if (existing != null) {
+                if (existing.status == AssignmentAnalysisStatus.FAILED) {
+                    applicationEventPublisher.publishEvent(AssignmentAnalysisPrepared(existing.id))
                 }
+                existing
+            } else {
+                assignmentAnalysisRepository
+                    .save(
+                        AssignmentAnalysis.create(
+                            todo = todo,
+                            courseId = payload.courseId,
+                            assignmentId = payload.assignmentId,
+                            contentHash = contentHash,
+                            sanitizedContent = extracted.sanitizedContent,
+                            skippedFiles = extracted.skippedFiles.joinToString("\n"),
+                        ),
+                    ).also { saved ->
+                        applicationEventPublisher.publishEvent(AssignmentAnalysisPrepared(saved.id))
+                    }
+            }
 
         return AssignmentAnalysisResponse(
             analysisId = analysis.id,

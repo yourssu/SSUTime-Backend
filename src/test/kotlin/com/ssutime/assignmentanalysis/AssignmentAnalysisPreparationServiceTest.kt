@@ -77,4 +77,26 @@ class AssignmentAnalysisPreparationServiceTest {
         verify(exactly = 0) { analysisRepository.save(any()) }
         verify(exactly = 0) { eventPublisher.publishEvent(any<AssignmentAnalysisPrepared>()) }
     }
+
+    @Test
+    fun `prepareAnalysis republishes event when existing analysis previously failed`() {
+        val extractedContent = ExtractedAssignmentContent("과제 설명과 첨부 텍스트", emptyList())
+        val existingAnalysis =
+            AssignmentAnalysis.create(todo, 44383L, 718158L, "a".repeat(64), extractedContent.sanitizedContent, "")
+        existingAnalysis.markFailed("AI_ANALYSIS_FAILED")
+        every { contentExtractor.extract(payload) } returns extractedContent
+        every {
+            analysisRepository.findByTodoAndCourseIdAndAssignmentIdAndContentHash(todo, 44383L, 718158L, any())
+        } returns existingAnalysis
+        val eventSlot = slot<AssignmentAnalysisPrepared>()
+        justRun { eventPublisher.publishEvent(capture(eventSlot)) }
+
+        val response = service.prepareAnalysis(todo, payload)
+
+        assertEquals(existingAnalysis.id, response.analysisId)
+        assertEquals(AssignmentAnalysisStatus.FAILED, response.status)
+        assertEquals(existingAnalysis.id, eventSlot.captured.analysisId)
+        verify(exactly = 0) { analysisRepository.save(any()) }
+        verify(exactly = 1) { eventPublisher.publishEvent(any<AssignmentAnalysisPrepared>()) }
+    }
 }
