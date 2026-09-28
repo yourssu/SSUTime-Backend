@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import jakarta.persistence.Version
@@ -18,6 +19,7 @@ import java.time.LocalDateTime
 @Table(
     name = "todo",
     uniqueConstraints = [UniqueConstraint(columnNames = ["subject_id", "material_code"])],
+    indexes = [Index(name = "idx_todo_due_date", columnList = "due_date")],
 )
 @DynamicUpdate
 class Todo private constructor(
@@ -44,6 +46,25 @@ class Todo private constructor(
 
     @Version
     var version: Long = 0
+
+    @Column(name = "attachment_links", columnDefinition = "TEXT")
+    private var attachmentLinksText: String? = null
+
+    val attachmentLinks: List<TodoAttachment>
+        get() =
+            attachmentLinksText
+                ?.split(ATTACHMENT_LINK_SEPARATOR)
+                ?.filter { it.isNotBlank() }
+                ?.map { entry ->
+                    val (url, fileName) = entry.split(ATTACHMENT_FIELD_SEPARATOR, limit = 2)
+                    TodoAttachment(url = url, fileName = fileName)
+                }.orEmpty()
+
+    // TodoRepository.updateAttachmentLinks()는 @Version을 올리지 않는 벌크 UPDATE라 영속성 컨텍스트가 갱신되지 않는다.
+    // 같은 트랜잭션에서 이 관리 상태 인스턴스를 계속 읽는 호출부(prepareAnalysis 등)가 stale 값을 보지 않도록 직접 동기화한다.
+    internal fun syncAttachmentLinksText(text: String?) {
+        attachmentLinksText = text
+    }
 
     fun confirm() {
         status = TodoStatus.CONFIRMED
@@ -72,6 +93,25 @@ class Todo private constructor(
 
     companion object {
         private const val HALF_HOUR_MINUTES = 30
+
+        private const val ATTACHMENT_LINK_SEPARATOR = "\n"
+        private const val ATTACHMENT_FIELD_SEPARATOR = ""
+
+        fun joinAttachmentLinks(attachments: List<TodoAttachment>): String? {
+            require(
+                attachments.all { attachment ->
+                    attachment.url.isNotBlank() &&
+                        attachment.fileName.isNotBlank() &&
+                        ATTACHMENT_LINK_SEPARATOR !in attachment.url &&
+                        ATTACHMENT_LINK_SEPARATOR !in attachment.fileName &&
+                        ATTACHMENT_FIELD_SEPARATOR !in attachment.url &&
+                        ATTACHMENT_FIELD_SEPARATOR !in attachment.fileName
+                },
+            ) { "attachment url/fileName must be single-line non-blank text" }
+            return attachments
+                .joinToString(ATTACHMENT_LINK_SEPARATOR) { "${it.url}$ATTACHMENT_FIELD_SEPARATOR${it.fileName}" }
+                .ifEmpty { null }
+        }
 
         fun create(
             subjectId: Long,

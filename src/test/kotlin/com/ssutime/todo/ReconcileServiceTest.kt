@@ -94,6 +94,35 @@ class ReconcileServiceTest {
     }
 
     @Test
+    fun `서로 다른 두 사용자의 신고값이 불일치해도 먼저 집계된 최다값으로 확정한다`() {
+        val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
+        val reports =
+            listOf(
+                TodoReport.create(1L, subjectId, materialCode, dueDate, "첫 신고"),
+                TodoReport.create(2L, subjectId, materialCode, dueDate, "둘째 신고"),
+            )
+
+        every { todoRepository.findBySubjectIdAndMaterialCode(subjectId, materialCode) } returns todo
+        every {
+            todoReportRepository.findBySubjectIdAndMaterialCodeAndReportedAtAfter(
+                subjectId,
+                materialCode,
+                any(),
+            )
+        } returns reports
+        every { todoRepository.save(todo) } returns todo
+
+        reconcileService.onTodoReported(TodoReported(subjectId, materialCode, 1L))
+
+        assertEquals("첫 신고", todo.title)
+        assertEquals(dueDate, todo.dueDate)
+        assertEquals(TodoStatus.CONFIRMED, todo.status)
+        verify(exactly = 1) { todoRepository.save(todo) }
+        verify(exactly = 0) { userTodoStatusRepository.findAllByTodo(any()) }
+        verify(exactly = 1) { eventPublisher.publishEvent(any<TodoConfirmed>()) }
+    }
+
+    @Test
     fun `quorum 충족 시 PROVISIONAL에서 CONFIRMED로 전이`() {
         val todo = Todo.create(subjectId, materialCode, TodoType.ASSIGNMENT, dueDate, title)
         val reports =

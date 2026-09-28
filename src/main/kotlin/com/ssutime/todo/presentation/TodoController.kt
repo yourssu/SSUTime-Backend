@@ -31,7 +31,7 @@ class TodoController(
         description =
             "LMS 콘텐츠에서 발견한 할 일을 생성하거나 갱신하고 인증된 사용자와 연결합니다. " +
                 "type이 SUBMITTED 또는 SUBMITTED_LATE이면 사용자 할 일을 완료 처리합니다. " +
-                "알림 예정 시각은 dueDate에서 계정의 notificationThresholdMinutes를 뺀 값으로 계산됩니다.",
+                "마감 알림은 한국 시간 당일 09시, D-1~3은 18시에 발송합니다. notifyAt은 이전 앱 호환용 필드입니다.",
     )
     fun report(
         @Parameter(hidden = true)
@@ -52,13 +52,19 @@ class TodoController(
     @PostMapping("/report-with-analysis")
     @Operation(
         summary = "LMS 할 일 제보 및 과제 첨부 AI 분석 요청",
-        description = "기존 할 일 제보를 처리한 뒤 요청 범위 LMS 인증정보로 Canvas 첨부를 다운로드/추출하고 비동기 AI 분석을 예약합니다.",
+        description =
+            "기존 할 일 제보를 처리하면서 assignmentHtml의 Canvas 첨부파일 링크를 할 일에 저장하고" +
+                "(첨부 링크가 없는 제보는 기존 링크를 지우지 않습니다), " +
+                "요청 범위 LMS 인증정보로 Canvas 첨부를 다운로드/추출해 비동기 AI 분석을 예약합니다.",
     )
     fun reportWithAnalysis(
         @Parameter(hidden = true)
         @AuthenticationPrincipal userId: Long,
         @RequestBody request: TodoReportWithAnalysisRequest,
     ): ResponseEntity<AssignmentAnalysisResponse> {
+        // assignmentHtml 파싱/검증 실패(예: 크기 초과)가 있어도 본인 제보는 항상 즉시 저장되어야 한다.
+        val attachmentLinks =
+            runCatching { assignmentAnalysisPreparationService.extractAttachmentLinks(request.assignmentAnalysis) }.getOrNull()
         val todo =
             todoService.processReport(
                 userId = userId,
@@ -67,6 +73,7 @@ class TodoController(
                 type = request.type,
                 dueDate = request.dueDate,
                 title = request.title,
+                attachmentLinks = attachmentLinks,
             )
         return ResponseEntity.ok(
             assignmentAnalysisPreparationService.prepareAnalysis(
@@ -79,7 +86,9 @@ class TodoController(
     @GetMapping("/todos")
     @Operation(
         summary = "사용자 할 일 목록 조회",
-        description = "인증된 사용자의 할 일 상태를 조회합니다. 완료 여부와 알림 예정 시각 관련 필드가 포함됩니다.",
+        description =
+            "인증된 사용자의 할 일 상태를 조회합니다. notifyAt과 notificationSent는 정시 알림의 발송 상태를 나타내지 않는 이전 앱 호환용 필드입니다. " +
+                "첨부파일이 있는 과제는 todo.attachmentLinks에 url/fileName/extension을 담은 객체 배열이 담기며, 없으면 빈 배열입니다.",
     )
     fun getTodos(
         @Parameter(hidden = true)

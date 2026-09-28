@@ -23,7 +23,10 @@ import kotlin.time.toJavaDuration
 @Table(
     name = "user_todo_status",
     uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "todo_id"])],
-    indexes = [Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent")],
+    indexes = [
+        Index(name = "idx_notify_at_sent", columnList = "notify_at, notification_sent"),
+        Index(name = "idx_status_completed_created", columnList = "is_completed, created_at"),
+    ],
 )
 @DynamicUpdate
 class UserTodoStatus private constructor(
@@ -39,6 +42,7 @@ class UserTodoStatus private constructor(
     @get:JsonProperty("isManuallyCompleted")
     @set:JsonProperty("isManuallyCompleted")
     var isManuallyCompleted: Boolean = false,
+    // Kept for existing API consumers; fixed notification times no longer use this value.
     @Column(nullable = false)
     var notifyAt: LocalDateTime,
     @Column(nullable = false)
@@ -54,10 +58,6 @@ class UserTodoStatus private constructor(
     fun recalculateNotifyAt(notificationThresholdMinutes: Int) {
         require(notificationThresholdMinutes >= 0) { "notificationThresholdMinutes must be non-negative" }
         notifyAt = todo.dueDate - notificationThresholdMinutes.minutes.toJavaDuration()
-    }
-
-    fun markNotificationSent() {
-        notificationSent = true
     }
 
     fun updateCompletion(completed: Boolean): Boolean {
