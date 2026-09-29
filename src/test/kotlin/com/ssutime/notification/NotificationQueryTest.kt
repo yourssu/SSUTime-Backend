@@ -94,6 +94,34 @@ class NotificationQueryTest
         }
 
         @Test
+        fun `threshold query includes due items and excludes past due, sent, completed and future items`() {
+            val now = LocalDateTime.of(2026, 9, 18, 14, 0)
+            val included = status(now.plusMinutes(30))
+            status(now.minusMinutes(1))
+            status(now)
+            status(now.plusMinutes(61))
+            status(now.plusMinutes(10)).notificationSent = true
+            status(now.plusMinutes(20)).updateCompletion(true)
+            // A zero threshold schedules the alert at the deadline itself, so no pre-deadline alert is sent.
+            status(now, thresholdMinutes = 0)
+            entityManager.flush()
+            entityManager.clear()
+            assertEquals(listOf(included.id), repository.findThresholdNotifications(now).map { it.id })
+        }
+
+        @Test
+        fun `mark notification sent removes item from threshold query without bumping version`() {
+            val now = LocalDateTime.of(2026, 9, 18, 14, 0)
+            val item = status(now.plusMinutes(30))
+            entityManager.flush()
+            entityManager.clear()
+            assertEquals(1, repository.markNotificationSent(item.id))
+            entityManager.clear()
+            assertEquals(emptyList<Long>(), repository.findThresholdNotifications(now).map { it.id })
+            assertEquals(item.version, repository.findById(item.id).get().version)
+        }
+
+        @Test
         fun `delivery slot is claimed once and stays closed after success`() {
             val date = LocalDate.of(2026, 9, 18)
             val now = LocalDateTime.of(2026, 9, 18, 18, 0)
@@ -153,8 +181,11 @@ class NotificationQueryTest
 
         private var materialCode = 0L
 
-        private fun status(due: LocalDateTime): UserTodoStatus {
+        private fun status(
+            due: LocalDateTime,
+            thresholdMinutes: Int = 60,
+        ): UserTodoStatus {
             val todo = entityManager.persist(Todo.create(10, ++materialCode, TodoType.ASSIGNMENT, due, "Assignment"))
-            return entityManager.persist(UserTodoStatus.create(1, todo, 60))
+            return entityManager.persist(UserTodoStatus.create(1, todo, thresholdMinutes))
         }
     }
