@@ -42,7 +42,6 @@ class UserTodoStatus private constructor(
     @get:JsonProperty("isManuallyCompleted")
     @set:JsonProperty("isManuallyCompleted")
     var isManuallyCompleted: Boolean = false,
-    // Schedules the per-todo reminder; fixed-time notifications do not use it.
     @Column(nullable = false)
     var notifyAt: LocalDateTime,
     @Column(nullable = false)

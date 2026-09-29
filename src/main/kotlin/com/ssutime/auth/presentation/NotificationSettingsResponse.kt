@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 @Schema(description = "계정 단위 알림 설정 응답입니다.")
 data class NotificationSettingsResponse(
     @field:Schema(
-        description = "마감 임박, 당일 마감, 신규 할 일, 게시판을 포함한 시스템 알림 사용 여부입니다.",
+        description = "마감 N분 전, 게시판을 포함한 시스템 알림 사용 여부입니다.",
         example = "true",
     )
     val notificationEnabled: Boolean,
