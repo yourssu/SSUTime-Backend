@@ -10,8 +10,7 @@ data class NotificationSettingsResponse(
     )
     val notificationEnabled: Boolean,
     @field:Schema(
-        description = "이전 앱 호환용 저장 값입니다. 정시 알림 발송 시각에는 적용되지 않습니다.",
-        deprecated = true,
+        description = "마감 몇 분 전에 개별 알림을 보낼지 나타내는 계정 설정입니다. 0이면 마감 N분 전 알림을 보내지 않습니다.",
         example = "60",
         minimum = "0",
     )
