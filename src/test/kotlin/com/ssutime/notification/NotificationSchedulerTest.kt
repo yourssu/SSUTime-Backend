@@ -4,11 +4,15 @@ import com.ssutime.notification.application.NotificationService
 import com.ssutime.notification.infrastructure.NotificationScheduler
 import com.ssutime.notification.infrastructure.latestScheduledDate
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.scheduling.annotation.Scheduled
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -36,6 +40,19 @@ class NotificationSchedulerTest {
         assertEquals("Asia/Seoul", morning.zone)
         assertEquals("Asia/Seoul", evening.zone)
         assertEquals("Asia/Seoul", retry.zone)
+    }
+
+    @Test
+    fun `deadline reminders run every minute with Seoul local time`() {
+        val reminder = NotificationScheduler::class.java.getMethod("sendDeadlineReminders").getAnnotation(Scheduled::class.java)
+        assertEquals("0 * * * * *", reminder.cron)
+        assertEquals("Asia/Seoul", reminder.zone)
+
+        val service = mockk<NotificationService>(relaxed = true)
+        val now = slot<LocalDateTime>()
+        NotificationScheduler(service).sendDeadlineReminders()
+        verify(exactly = 1) { service.sendDeadlineReminders(capture(now)) }
+        assertTrue(Duration.between(now.captured, LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs() < Duration.ofMinutes(1))
     }
 
     @Test

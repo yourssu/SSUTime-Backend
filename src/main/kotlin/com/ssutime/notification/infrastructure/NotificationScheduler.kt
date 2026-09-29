@@ -4,6 +4,7 @@ import com.ssutime.notification.application.NotificationService
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -24,6 +25,10 @@ class NotificationScheduler(
         notificationService.sendMorningNotifications(latestScheduledDate(now, LocalTime.of(9, 0)))
         notificationService.sendEveningNotifications(latestScheduledDate(now, LocalTime.of(18, 0)))
     }
+
+    // Deadlines are stored in Seoul local time.
+    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
+    fun sendDeadlineReminders() = notificationService.sendDeadlineReminders(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
 }
 
 internal fun latestScheduledDate(
