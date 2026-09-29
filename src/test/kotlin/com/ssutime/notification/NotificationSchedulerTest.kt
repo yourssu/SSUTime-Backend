@@ -60,6 +60,22 @@ class NotificationSchedulerTest {
     }
 
     @Test
+    fun `crawl trigger before deadline approaching runs every minute with Seoul local time`() {
+        val schedule =
+            NotificationScheduler::class.java
+                .getMethod("triggerCrawlBeforeDeadlineApproaching")
+                .getAnnotation(Scheduled::class.java)
+        assertEquals("0 * * * * *", schedule.cron)
+        assertEquals("Asia/Seoul", schedule.zone)
+
+        val service = mockk<NotificationService>(relaxed = true)
+        val now = slot<LocalDateTime>()
+        NotificationScheduler(service).triggerCrawlBeforeDeadlineApproaching()
+        verify(exactly = 1) { service.triggerCrawlBeforeDeadlineApproaching(capture(now)) }
+        assertTrue(Duration.between(now.captured, LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs() < Duration.ofMinutes(1))
+    }
+
+    @Test
     fun `retry uses most recent scheduled date`() {
         val zone = ZoneId.of("Asia/Seoul")
         val date = LocalDate.of(2026, 9, 18)

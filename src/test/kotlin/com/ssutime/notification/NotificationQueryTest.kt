@@ -110,6 +110,26 @@ class NotificationQueryTest
         }
 
         @Test
+        fun `crawl window query includes reminders due in the half open window only`() {
+            val start = LocalDateTime.of(2026, 9, 18, 14, 1)
+            val end = start.plusMinutes(1)
+            val includedWithSeconds = status(start.plusSeconds(30).plusMinutes(60))
+            val includedAtEnd = status(end.plusMinutes(60))
+            status(start.plusMinutes(60))
+            status(end.plusSeconds(1).plusMinutes(60))
+            status(end.plusMinutes(60)).notificationSent = true
+            status(end.plusMinutes(60)).updateCompletion(true)
+            // A zero threshold sends no reminder, so it needs no crawl either.
+            status(end, thresholdMinutes = 0)
+            entityManager.flush()
+            entityManager.clear()
+            assertEquals(
+                listOf(includedWithSeconds.id, includedAtEnd.id),
+                repository.findThresholdNotificationsBetween(start, end).map { it.id }.sorted(),
+            )
+        }
+
+        @Test
         fun `mark notification sent removes item from threshold query without bumping version`() {
             val now = LocalDateTime.of(2026, 9, 18, 14, 0)
             val item = status(now.plusMinutes(30))

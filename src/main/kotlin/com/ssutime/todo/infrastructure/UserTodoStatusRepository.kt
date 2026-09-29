@@ -42,6 +42,16 @@ interface UserTodoStatusRepository : JpaRepository<UserTodoStatus, Long> {
     )
     fun findThresholdNotifications(now: LocalDateTime): List<UserTodoStatus>
 
+    @Query(
+        "SELECT u FROM UserTodoStatus u JOIN FETCH u.todo t " +
+            "WHERE u.notifyAt > :start AND u.notifyAt <= :end AND u.notificationSent = false " +
+            "AND u.isCompleted = false AND t.dueDate > u.notifyAt",
+    )
+    fun findThresholdNotificationsBetween(
+        start: LocalDateTime,
+        end: LocalDateTime,
+    ): List<UserTodoStatus>
+
     // Bulk update keeps the version untouched so it does not conflict with concurrent reconcile updates.
     @Modifying
     @Transactional
