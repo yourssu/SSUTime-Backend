@@ -75,18 +75,16 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `evening sends at most two groups and preserves overlap with earliest representative`() {
+    fun `evening sends only the new todo group with earliest representative`() {
         val items = listOf(item(3), item(1, TodoType.QUIZ), item(2))
         val cutoff = today.atTime(18, 0).atZone(ZoneId.of("Asia/Seoul"))
         val start = cutoff.minusDays(1).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
         val end = cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-        every {
-            statuses.findDeadlineNotifications(today.plusDays(1).atStartOfDay(), today.plusDays(4).atStartOfDay(), end)
-        } returns items
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns items
         every { statuses.findNewNotifications(start, end) } returns items
         service.sendEveningNotifications(today)
-        assertEquals(2, messages.size)
-        assertEquals(listOf("deadlineReminder", "newTodo"), messages.map { it["type"] })
+        assertEquals(listOf("newTodo"), messages.map { it["type"] })
+        verify(exactly = 0) { statuses.findDeadlineNotifications(any(), any(), any()) }
         assertTrue(messages.all { it["count"] == "3" && it["representative_todo_id"] == "42" && it["todo_type"] == "QUIZ" })
         assertTrue(messages.all { "todo_id" !in it && "action" !in it && "destination" !in it && "body" !in it && "title" !in it })
     }
@@ -109,7 +107,6 @@ class NotificationServiceTest {
 
     @Test
     fun `single lecture passes source data for client rendering`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(2, TodoType.COMMONS))
         every { statuses.findNewNotifications(any(), any()) } returns listOf(item(2, TodoType.COMMONS))
         service.sendEveningNotifications(today)
         assertTrue(messages.all { it["todo_type"] == "COMMONS" && it["todo_title"] == "제목" })
@@ -148,11 +145,11 @@ class NotificationServiceTest {
                 .apply { isAccessible = true }
                 .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
         every { fcm.sendSilentPush("broken", any()) } throws failure
-        val pending = listOf(item(1))
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns pending
-        every { statuses.findNewNotifications(any(), any()) } returns pending
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
+        service.sendMorningNotifications(today)
         service.sendEveningNotifications(today)
-        assertEquals(2, messages.size)
+        assertEquals(listOf("dueToday", "newTodo"), messages.map { it["type"] })
         verify(atLeast = 1) { deliveries.release(any(), any()) }
     }
 
@@ -169,9 +166,9 @@ class NotificationServiceTest {
 
     @Test
     fun `same delivery slot is not sent twice`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
+        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
         every {
-            deliveries.claim(any(), "deadlineReminder", today, "group", any(), any(), any())
+            deliveries.claim(any(), "newTodo", today, "group", any(), any(), any())
         } returnsMany listOf(1, 0)
 
         service.sendEveningNotifications(today)
@@ -183,16 +180,16 @@ class NotificationServiceTest {
 
     @Test
     fun `single deadline includes actual id and original action`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
-        service.sendEveningNotifications(today)
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        service.sendMorningNotifications(today)
         assertEquals(
             mapOf(
-                "type" to "deadlineReminder",
+                "type" to "dueToday",
                 "count" to "1",
                 "representative_todo_id" to "41",
                 "todo_title" to "제목",
                 "todo_type" to "ASSIGNMENT",
-                "due_date" to "2026-09-19T23:59",
+                "due_date" to "2026-09-18T23:59",
                 "subject_name" to "데이터사이언스",
                 "todo_id" to "41",
                 "action" to "deadline_approaching",

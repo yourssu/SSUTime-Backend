@@ -86,14 +86,6 @@ class NotificationService(
     @Async("taskExecutor")
     fun sendEveningNotifications(today: LocalDate) {
         val cutoff = today.atTime(18, 0).atZone(ZoneId.of("Asia/Seoul"))
-        sendTodoNotifications(
-            userTodoStatusRepository.findDeadlineNotifications(
-                today.plusDays(1).atStartOfDay(),
-                today.plusDays(4).atStartOfDay(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.DEADLINE_REMINDER,
-        ) { today }
         // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
         sendTodoNotifications(
             userTodoStatusRepository.findNewNotifications(
@@ -210,7 +202,6 @@ class NotificationService(
         val individual: Boolean,
     ) {
         DUE_TODAY("dueToday", true),
-        DEADLINE_REMINDER("deadlineReminder", false),
         NEW_TODO("newTodo", false),
         DEADLINE_APPROACHING("deadlineApproaching", true),
     }

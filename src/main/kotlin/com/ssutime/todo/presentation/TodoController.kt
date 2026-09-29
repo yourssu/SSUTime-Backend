@@ -31,7 +31,7 @@ class TodoController(
         description =
             "LMS 콘텐츠에서 발견한 할 일을 생성하거나 갱신하고 인증된 사용자와 연결합니다. " +
                 "type이 SUBMITTED 또는 SUBMITTED_LATE이면 사용자 할 일을 완료 처리합니다. " +
-                "마감 알림은 한국 시간 당일 09시, D-1~3은 18시에 발송하고, 별도로 notifyAt(dueDate - notificationThresholdMinutes)에 개별 발송합니다.",
+                "마감 알림은 한국 시간 당일 09시에 발송하고, 별도로 notifyAt(dueDate - notificationThresholdMinutes)에 개별 발송합니다.",
     )
     fun report(
         @Parameter(hidden = true)
