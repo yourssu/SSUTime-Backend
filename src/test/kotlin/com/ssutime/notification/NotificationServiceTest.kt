@@ -60,6 +60,9 @@ class NotificationServiceTest {
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 1
         every { deliveries.markSent(any(), any()) } returns 1
         every { deliveries.release(any(), any()) } returns 1
+        every {
+            deliveries.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(any(), any(), any(), any(), "SENT")
+        } returns true
     }
 
     private fun item(
@@ -254,7 +257,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `deadline reminder already claimed for a device is not sent again but is marked sent`() {
+    fun `deadline reminder already sent to a device is not sent again but is marked sent`() {
         every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 0
 
@@ -262,6 +265,20 @@ class NotificationServiceTest {
 
         assertTrue(messages.isEmpty())
         verify(exactly = 1) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `deadline reminder claimed by an unfinished run stays unsent so it is retried`() {
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+        every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 0
+        every {
+            deliveries.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(any(), any(), any(), any(), "SENT")
+        } returns false
+
+        service.sendDeadlineReminders(LocalDateTime.of(2026, 9, 19, 23, 0))
+
+        assertTrue(messages.isEmpty())
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
     }
 
     @Test

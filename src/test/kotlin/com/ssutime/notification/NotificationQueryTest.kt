@@ -151,7 +151,27 @@ class NotificationQueryTest
                     expiredBefore = now.minusMinutes(30),
                 ),
             )
+            assertEquals(
+                false,
+                deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
+                    10,
+                    "deadlineApproaching",
+                    date,
+                    "group",
+                    "SENT",
+                ),
+            )
             assertEquals(1, deliveryRepository.markSent("claim-1", now.plusSeconds(1)))
+            assertEquals(
+                true,
+                deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
+                    10,
+                    "deadlineApproaching",
+                    date,
+                    "group",
+                    "SENT",
+                ),
+            )
             assertEquals(
                 0,
                 deliveryRepository.claim(

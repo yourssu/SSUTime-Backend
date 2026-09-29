@@ -186,8 +186,16 @@ class NotificationService(
                 now = now,
                 expiredBefore = now.minusMinutes(CLAIM_LEASE_MINUTES),
             )
-        // The slot was already sent or is being sent by another run.
-        if (claimed == 0) return true
+        // Another run holds the slot; it only counts once that run has actually sent it.
+        if (claimed == 0) {
+            return notificationDeliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
+                userDeviceId,
+                type.wireName,
+                scheduledDate,
+                groupKey,
+                "SENT",
+            )
+        }
 
         if (sendSilentPush(fcmToken, data)) {
             notificationDeliveryRepository.markSent(claimToken, LocalDateTime.now())
