@@ -18,6 +18,15 @@ class NotificationScheduler(
     @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Seoul")
     fun sendEveningNotifications() = notificationService.sendEveningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
 
+    // Two minutes before each slot, clients crawl LMS so completed todos are excluded from the notification.
+    @Scheduled(cron = "0 58 8 * * *", zone = "Asia/Seoul")
+    fun triggerCrawlBeforeMorningNotifications() =
+        notificationService.triggerCrawlBeforeMorningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
+
+    @Scheduled(cron = "0 58 17 * * *", zone = "Asia/Seoul")
+    fun triggerCrawlBeforeEveningNotifications() =
+        notificationService.triggerCrawlBeforeEveningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
+
     @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Seoul")
     fun retryMissedNotifications() {
         val now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))

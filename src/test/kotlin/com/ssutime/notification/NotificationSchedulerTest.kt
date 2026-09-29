@@ -26,6 +26,26 @@ class NotificationSchedulerTest {
     }
 
     @Test
+    fun `crawl triggers run two minutes before each notification slot in Seoul`() {
+        val service = mockk<NotificationService>(relaxed = true)
+        val scheduler = NotificationScheduler(service)
+        val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
+        scheduler.triggerCrawlBeforeMorningNotifications()
+        scheduler.triggerCrawlBeforeEveningNotifications()
+        verify(exactly = 1) { service.triggerCrawlBeforeMorningNotifications(today) }
+        verify(exactly = 1) { service.triggerCrawlBeforeEveningNotifications(today) }
+
+        val morning =
+            NotificationScheduler::class.java.getMethod("triggerCrawlBeforeMorningNotifications").getAnnotation(Scheduled::class.java)
+        val evening =
+            NotificationScheduler::class.java.getMethod("triggerCrawlBeforeEveningNotifications").getAnnotation(Scheduled::class.java)
+        assertEquals("0 58 8 * * *", morning.cron)
+        assertEquals("0 58 17 * * *", evening.cron)
+        assertEquals("Asia/Seoul", morning.zone)
+        assertEquals("Asia/Seoul", evening.zone)
+    }
+
+    @Test
     fun `schedules run at 9 and 18 in Seoul`() {
         val morning = NotificationScheduler::class.java.getMethod("sendMorningNotifications").getAnnotation(Scheduled::class.java)
         val evening = NotificationScheduler::class.java.getMethod("sendEveningNotifications").getAnnotation(Scheduled::class.java)

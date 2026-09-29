@@ -22,6 +22,7 @@ import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 
@@ -71,39 +72,61 @@ class NotificationService(
 
     @Async("taskExecutor")
     fun sendMorningNotifications(today: LocalDate) {
-        val cutoff = today.atTime(9, 0).atZone(ZoneId.of("Asia/Seoul"))
-        sendTodoNotifications(
-            userTodoStatusRepository.findDeadlineNotifications(
-                today.atStartOfDay(),
-                today.plusDays(1).atStartOfDay(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.DUE_TODAY,
-            today,
-        )
+        sendTodoNotifications(findMorningDeadlines(today), NotificationType.DUE_TODAY, today)
     }
 
     @Async("taskExecutor")
     fun sendEveningNotifications(today: LocalDate) {
-        val cutoff = today.atTime(18, 0).atZone(ZoneId.of("Asia/Seoul"))
-        sendTodoNotifications(
-            userTodoStatusRepository.findDeadlineNotifications(
-                today.plusDays(1).atStartOfDay(),
-                today.plusDays(4).atStartOfDay(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.DEADLINE_APPROACHING,
-            today,
+        sendTodoNotifications(findEveningDeadlines(today), NotificationType.DEADLINE_APPROACHING, today)
+        sendTodoNotifications(findEveningNewTodos(today), NotificationType.NEW_TODO, today)
+    }
+
+    @Async("taskExecutor")
+    fun triggerCrawlBeforeMorningNotifications(today: LocalDate) = triggerCrawl(findMorningDeadlines(today))
+
+    @Async("taskExecutor")
+    fun triggerCrawlBeforeEveningNotifications(today: LocalDate) = triggerCrawl(findEveningDeadlines(today) + findEveningNewTodos(today))
+
+    private fun findMorningDeadlines(today: LocalDate): List<UserTodoStatus> =
+        userTodoStatusRepository.findDeadlineNotifications(
+            today.atStartOfDay(),
+            today.plusDays(1).atStartOfDay(),
+            systemLocalTime(today, MORNING_TIME),
         )
-        // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
-        sendTodoNotifications(
-            userTodoStatusRepository.findNewNotifications(
-                cutoff.minusDays(1).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.NEW_TODO,
-            today,
+
+    private fun findEveningDeadlines(today: LocalDate): List<UserTodoStatus> =
+        userTodoStatusRepository.findDeadlineNotifications(
+            today.plusDays(1).atStartOfDay(),
+            today.plusDays(4).atStartOfDay(),
+            systemLocalTime(today, EVENING_TIME),
         )
+
+    // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
+    private fun findEveningNewTodos(today: LocalDate): List<UserTodoStatus> =
+        userTodoStatusRepository.findNewNotifications(
+            systemLocalTime(today.minusDays(1), EVENING_TIME),
+            systemLocalTime(today, EVENING_TIME),
+        )
+
+    private fun systemLocalTime(
+        date: LocalDate,
+        time: LocalTime,
+    ): LocalDateTime =
+        date
+            .atTime(time)
+            .atZone(ZoneId.of("Asia/Seoul"))
+            .withZoneSameInstant(ZoneId.systemDefault())
+            .toLocalDateTime()
+
+    // Syncs completion state before the notification slot; it must not claim notification delivery slots.
+    private fun triggerCrawl(pending: List<UserTodoStatus>) {
+        pending.map { it.userId }.distinct().forEach { userId ->
+            val user = userRepository.findById(userId).orElse(null) ?: return@forEach
+            if (!user.notificationEnabled) return@forEach
+            userDeviceRepository.findAllByUser(user).forEach { device ->
+                sendSilentPush(device.fcmToken, mapOf("action" to "crawl_lms"))
+            }
+        }
     }
 
     private fun sendTodoNotifications(
@@ -204,5 +227,7 @@ class NotificationService(
 
     companion object {
         private const val CLAIM_LEASE_MINUTES = 30L
+        private val MORNING_TIME = LocalTime.of(9, 0)
+        private val EVENING_TIME = LocalTime.of(18, 0)
     }
 }

@@ -215,6 +215,68 @@ class NotificationServiceTest {
     }
 
     @Test
+    fun `morning crawl trigger targets users with items due today`() {
+        val cutoff =
+            today
+                .atTime(9, 0)
+                .atZone(ZoneId.of("Asia/Seoul"))
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime()
+        every { statuses.findDeadlineNotifications(today.atStartOfDay(), today.plusDays(1).atStartOfDay(), cutoff) } returns
+            listOf(item(0), item(0, TodoType.QUIZ))
+        every { devices.findAllByUser(user) } returns listOf(UserDevice.create(user, "phone"), UserDevice.create(user, "tablet"))
+        service.triggerCrawlBeforeMorningNotifications(today)
+        verify(exactly = 1) { fcm.sendSilentPush("phone", mapOf("action" to "crawl_lms")) }
+        verify(exactly = 1) { fcm.sendSilentPush("tablet", mapOf("action" to "crawl_lms")) }
+        assertEquals(2, messages.size)
+    }
+
+    @Test
+    fun `evening crawl trigger sends once per device across deadline and new items`() {
+        val other = User(id = 2, authKey = "other", maskedStudentId = "20****02")
+        every { users.findById(2) } returns Optional.of(other)
+        every { devices.findAllByUser(other) } returns listOf(UserDevice.create(other, "other-token"))
+        val newOnly = UserTodoStatus.create(2, item(5).todo, 60)
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1), item(2))
+        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1), newOnly)
+        service.triggerCrawlBeforeEveningNotifications(today)
+        verify(exactly = 1) { fcm.sendSilentPush("token", mapOf("action" to "crawl_lms")) }
+        verify(exactly = 1) { fcm.sendSilentPush("other-token", mapOf("action" to "crawl_lms")) }
+        assertEquals(2, messages.size)
+    }
+
+    @Test
+    fun `crawl trigger skips disabled users and does not claim notification slots`() {
+        every { users.findById(1) } returns
+            Optional.of(User(id = 1, authKey = "key", maskedStudentId = "20****01", notificationEnabled = false))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        service.triggerCrawlBeforeMorningNotifications(today)
+        assertTrue(messages.isEmpty())
+
+        every { users.findById(1) } returns Optional.of(user)
+        service.triggerCrawlBeforeMorningNotifications(today)
+        assertEquals(1, messages.size)
+        verify(exactly = 0) { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `crawl trigger failure does not delete device or stop other devices`() {
+        every { devices.findAllByUser(user) } returns
+            listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
+        val failure =
+            FirebaseMessagingException::class.java
+                .getDeclaredConstructor(ErrorCode::class.java, String::class.java)
+                .apply { isAccessible = true }
+                .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
+        every { fcm.sendSilentPush("broken", any()) } throws failure
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        service.triggerCrawlBeforeMorningNotifications(today)
+        assertEquals(listOf(mapOf("action" to "crawl_lms")), messages)
+        verify(exactly = 0) { devices.delete(any()) }
+    }
+
+    @Test
     fun `board preserves legacy payload`() {
         every { devices.findByUserAndFcmToken(user, "token") } returns UserDevice.create(user, "token")
         service.onNewBoardDetected(NewBoardDetected("token", "제출 게시판", user.id))
