@@ -11,6 +11,7 @@ import com.ssutime.notification.infrastructure.BoardRepository
 import com.ssutime.notification.infrastructure.FcmClient
 import com.ssutime.notification.infrastructure.NotificationDeliveryRepository
 import com.ssutime.subject.infrastructure.SubjectRepository
+import com.ssutime.todo.domain.Todo
 import com.ssutime.todo.domain.UserTodoStatus
 import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import org.slf4j.LoggerFactory
@@ -79,8 +80,7 @@ class NotificationService(
                 cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
             NotificationType.DUE_TODAY,
-            today,
-        )
+        ) { today }
     }
 
     @Async("taskExecutor")
@@ -93,8 +93,7 @@ class NotificationService(
                 cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
             NotificationType.DEADLINE_APPROACHING,
-            today,
-        )
+        ) { today }
         // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
         sendTodoNotifications(
             userTodoStatusRepository.findNewNotifications(
@@ -102,26 +101,37 @@ class NotificationService(
                 cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
             NotificationType.NEW_TODO,
-            today,
-        )
+        ) { today }
     }
 
+    @Async("taskExecutor")
+    fun sendDeadlineReminders(now: LocalDateTime) {
+        // The slot date follows the deadline so a retry after midnight reuses the same delivery slot.
+        sendTodoNotifications(
+            userTodoStatusRepository.findThresholdNotifications(now),
+            NotificationType.DEADLINE_REMINDER,
+        ) { it.dueDate.toLocalDate() }
+            .forEach { userTodoStatusRepository.markNotificationSent(it.id) }
+    }
+
+    /** Returns the items delivered to every device of their user; items of disabled users are not included. */
     private fun sendTodoNotifications(
         pending: List<UserTodoStatus>,
         type: NotificationType,
-        scheduledDate: LocalDate,
-    ) {
-        if (pending.isEmpty()) return
+        scheduledDate: (Todo) -> LocalDate,
+    ): List<UserTodoStatus> {
+        if (pending.isEmpty()) return emptyList()
+        val delivered = mutableListOf<UserTodoStatus>()
         val subjectNames = subjectRepository.findAllById(pending.map { it.todo.subjectId }.distinct()).associate { it.id to it.name }
         pending.groupBy { it.userId }.forEach { (userId, items) ->
             val user = userRepository.findById(userId).orElse(null) ?: return@forEach
             if (!user.notificationEnabled) return@forEach
             val devices = userDeviceRepository.findAllByUser(user)
-            val groups = if (type == NotificationType.DUE_TODAY) items.map { listOf(it) } else listOf(items)
+            val groups = if (type.individual) items.map { listOf(it) } else listOf(items)
             groups.forEach { group ->
                 val first = group.minWith(compareBy({ it.todo.dueDate }, { it.todo.id })).todo
                 val single = group.size == 1
-                val groupKey = if (type == NotificationType.DUE_TODAY) "todo:${first.id}" else "group"
+                val groupKey = if (type.individual) "todo:${first.id}" else "group"
                 val data =
                     buildMap {
                         put("type", type.wireName)
@@ -137,18 +147,22 @@ class NotificationService(
                             if (type != NotificationType.NEW_TODO) put("action", "deadline_approaching")
                         }
                     }
-                devices.forEach { device ->
-                    sendOnce(
-                        userDeviceId = device.id,
-                        fcmToken = device.fcmToken,
-                        type = type,
-                        scheduledDate = scheduledDate,
-                        groupKey = groupKey,
-                        data = data,
-                    )
-                }
+                val sentToAllDevices =
+                    devices
+                        .map { device ->
+                            sendOnce(
+                                userDeviceId = device.id,
+                                fcmToken = device.fcmToken,
+                                type = type,
+                                scheduledDate = scheduledDate(first),
+                                groupKey = groupKey,
+                                data = data,
+                            )
+                        }.all { it }
+                if (sentToAllDevices) delivered += group
             }
         }
+        return delivered
     }
 
     private fun sendOnce(
@@ -158,7 +172,7 @@ class NotificationService(
         scheduledDate: LocalDate,
         groupKey: String,
         data: Map<String, String>,
-    ) {
+    ): Boolean {
         val now = LocalDateTime.now()
         notificationDeliveryRepository.insertIfAbsent(userDeviceId, type.wireName, scheduledDate, groupKey, now)
         val claimToken = UUID.randomUUID().toString()
@@ -172,21 +186,25 @@ class NotificationService(
                 now = now,
                 expiredBefore = now.minusMinutes(CLAIM_LEASE_MINUTES),
             )
-        if (claimed == 0) return
+        // The slot was already sent or is being sent by another run.
+        if (claimed == 0) return true
 
         if (sendSilentPush(fcmToken, data)) {
             notificationDeliveryRepository.markSent(claimToken, LocalDateTime.now())
-        } else {
-            notificationDeliveryRepository.release(claimToken, LocalDateTime.now())
+            return true
         }
+        notificationDeliveryRepository.release(claimToken, LocalDateTime.now())
+        return false
     }
 
     private enum class NotificationType(
         val wireName: String,
+        val individual: Boolean,
     ) {
-        DUE_TODAY("dueToday"),
-        DEADLINE_APPROACHING("deadlineApproaching"),
-        NEW_TODO("newTodo"),
+        DUE_TODAY("dueToday", true),
+        DEADLINE_APPROACHING("deadlineApproaching", false),
+        NEW_TODO("newTodo", false),
+        DEADLINE_REMINDER("deadlineReminder", true),
     }
 
     private fun sendSilentPush(

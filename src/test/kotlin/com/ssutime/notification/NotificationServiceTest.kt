@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Optional
 
@@ -53,6 +54,8 @@ class NotificationServiceTest {
         }
         every { statuses.findDeadlineNotifications(any(), any(), any()) } returns emptyList()
         every { statuses.findNewNotifications(any(), any()) } returns emptyList()
+        every { statuses.findThresholdNotifications(any()) } returns emptyList()
+        every { statuses.markNotificationSent(any()) } returns 1
         every { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) } returns 1
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 1
         every { deliveries.markSent(any(), any()) } returns 1
@@ -213,6 +216,89 @@ class NotificationServiceTest {
         assertEquals("QUIZ", messages.last()["todo_type"])
         assertTrue("action" !in messages.last())
     }
+
+    @Test
+    fun `deadline reminder sends each item with legacy action and marks it sent`() {
+        val now = LocalDateTime.of(2026, 9, 19, 23, 0)
+        val quiz = item(1, TodoType.QUIZ)
+        val assignment = item(1)
+        ReflectionTestUtils.setField(quiz, "id", 7L)
+        ReflectionTestUtils.setField(assignment, "id", 8L)
+        every { statuses.findThresholdNotifications(now) } returns listOf(quiz, assignment)
+
+        service.sendDeadlineReminders(now)
+
+        assertEquals(listOf("41", "42"), messages.map { it["todo_id"] })
+        assertTrue(
+            messages.all {
+                it["type"] == "deadlineReminder" && it["count"] == "1" && it["action"] == "deadline_approaching"
+            },
+        )
+        verify(exactly = 1) { deliveries.claim(any(), "deadlineReminder", today.plusDays(1), "todo:41", any(), any(), any()) }
+        verify(exactly = 1) { statuses.markNotificationSent(7) }
+        verify(exactly = 1) { statuses.markNotificationSent(8) }
+    }
+
+    @Test
+    fun `deadline reminder stays unsent when a device fails so it is retried`() {
+        every { devices.findAllByUser(user) } returns
+            listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
+        every { fcm.sendSilentPush("broken", any()) } throws messagingFailure()
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+
+        service.sendDeadlineReminders(LocalDateTime.of(2026, 9, 19, 23, 0))
+
+        assertEquals(1, messages.size)
+        verify(exactly = 1) { deliveries.release(any(), any()) }
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `deadline reminder already claimed for a device is not sent again but is marked sent`() {
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+        every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 0
+
+        service.sendDeadlineReminders(LocalDateTime.of(2026, 9, 19, 23, 0))
+
+        assertTrue(messages.isEmpty())
+        verify(exactly = 1) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `deadline reminder skips disabled user without marking sent`() {
+        user.notificationEnabled = false
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+
+        service.sendDeadlineReminders(LocalDateTime.of(2026, 9, 19, 23, 0))
+
+        assertTrue(messages.isEmpty())
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `deadline reminder for user without devices is marked sent`() {
+        every { devices.findAllByUser(user) } returns emptyList()
+        val pending = item(1)
+        every { statuses.findThresholdNotifications(any()) } returns listOf(pending)
+
+        service.sendDeadlineReminders(LocalDateTime.of(2026, 9, 19, 23, 0))
+
+        verify(exactly = 1) { statuses.markNotificationSent(pending.id) }
+    }
+
+    @Test
+    fun `fixed time notifications do not mark threshold reminders sent`() {
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
+        service.sendMorningNotifications(today)
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    private fun messagingFailure(): FirebaseMessagingException =
+        // Firebase exposes no public constructor for messaging exceptions.
+        FirebaseMessagingException::class.java
+            .getDeclaredConstructor(ErrorCode::class.java, String::class.java)
+            .apply { isAccessible = true }
+            .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
 
     @Test
     fun `board preserves legacy payload`() {
