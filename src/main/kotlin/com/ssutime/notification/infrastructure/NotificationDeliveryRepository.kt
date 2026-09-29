@@ -9,6 +9,14 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 interface NotificationDeliveryRepository : JpaRepository<NotificationDelivery, Long> {
+    fun existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
+        userDeviceId: Long,
+        notificationType: String,
+        scheduledDate: LocalDate,
+        groupKey: String,
+        status: String,
+    ): Boolean
+
     @Modifying
     @Transactional
     @Query(
