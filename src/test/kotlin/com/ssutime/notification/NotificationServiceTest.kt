@@ -56,6 +56,7 @@ class NotificationServiceTest {
         }
         every { statuses.findThresholdNotifications(any()) } returns emptyList()
         every { statuses.markNotificationSent(any()) } returns 1
+        every { statuses.findThresholdNotificationsBetween(any(), any()) } returns emptyList()
         every { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) } returns 1
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 1
         every { deliveries.markSent(any(), any()) } returns 1
@@ -207,6 +208,55 @@ class NotificationServiceTest {
         service.sendDeadlineApproachingNotifications(now)
 
         verify(exactly = 1) { statuses.markNotificationSent(pending.id) }
+    }
+
+    @Test
+    fun `crawl trigger targets reminders due two minutes after the current minute`() {
+        every {
+            statuses.findThresholdNotificationsBetween(LocalDateTime.of(2026, 9, 19, 22, 58), LocalDateTime.of(2026, 9, 19, 22, 59))
+        } returns listOf(item(1), item(1))
+        every { devices.findAllByUser(user) } returns listOf(UserDevice.create(user, "phone"), UserDevice.create(user, "tablet"))
+
+        service.triggerCrawlBeforeDeadlineApproaching(LocalDateTime.of(2026, 9, 19, 22, 57, 0, 5_000_000))
+
+        verify(exactly = 1) { fcm.sendSilentPush("phone", mapOf("action" to "crawl_lms")) }
+        verify(exactly = 1) { fcm.sendSilentPush("tablet", mapOf("action" to "crawl_lms")) }
+        assertEquals(2, messages.size)
+    }
+
+    @Test
+    fun `crawl trigger does not touch delivery slots or reminder state`() {
+        every { statuses.findThresholdNotificationsBetween(any(), any()) } returns listOf(item(1))
+
+        service.triggerCrawlBeforeDeadlineApproaching(LocalDateTime.of(2026, 9, 19, 22, 57))
+
+        assertEquals(listOf(mapOf("action" to "crawl_lms")), messages)
+        verify(exactly = 0) { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `crawl trigger skips disabled user`() {
+        user.notificationEnabled = false
+        every { statuses.findThresholdNotificationsBetween(any(), any()) } returns listOf(item(1))
+
+        service.triggerCrawlBeforeDeadlineApproaching(LocalDateTime.of(2026, 9, 19, 22, 57))
+
+        assertTrue(messages.isEmpty())
+    }
+
+    @Test
+    fun `crawl trigger failure keeps the device and continues with other devices`() {
+        every { devices.findAllByUser(user) } returns
+            listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
+        every { fcm.sendSilentPush("broken", any()) } throws messagingFailure()
+        every { statuses.findThresholdNotificationsBetween(any(), any()) } returns listOf(item(1))
+
+        service.triggerCrawlBeforeDeadlineApproaching(LocalDateTime.of(2026, 9, 19, 22, 57))
+
+        assertEquals(listOf(mapOf("action" to "crawl_lms")), messages)
+        verify(exactly = 0) { devices.delete(any()) }
     }
 
     private fun messagingFailure(): FirebaseMessagingException =

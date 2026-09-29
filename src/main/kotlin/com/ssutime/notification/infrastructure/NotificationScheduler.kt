@@ -14,4 +14,9 @@ class NotificationScheduler(
     @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
     fun sendDeadlineApproachingNotifications() =
         notificationService.sendDeadlineApproachingNotifications(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
+
+    // Clients crawl LMS two minutes ahead so todos completed just before the reminder are excluded.
+    @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
+    fun triggerCrawlBeforeDeadlineApproaching() =
+        notificationService.triggerCrawlBeforeDeadlineApproaching(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
 }

@@ -21,6 +21,7 @@ import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
@@ -109,6 +110,26 @@ class NotificationService(
         }
     }
 
+    @Async("taskExecutor")
+    fun triggerCrawlBeforeDeadlineApproaching(now: LocalDateTime) {
+        // Targets reminders the per-minute run will send two minutes later, so each reminder falls in exactly one window.
+        val minute = now.truncatedTo(ChronoUnit.MINUTES)
+        userTodoStatusRepository
+            .findThresholdNotificationsBetween(
+                minute.plusMinutes(CRAWL_LEAD_MINUTES - 1),
+                minute.plusMinutes(CRAWL_LEAD_MINUTES),
+            ).map { it.userId }
+            .distinct()
+            .forEach { userId ->
+                val user = userRepository.findById(userId).orElse(null) ?: return@forEach
+                if (!user.notificationEnabled) return@forEach
+                // Crawl signals are best effort and must not claim notification delivery slots.
+                userDeviceRepository.findAllByUser(user).forEach { device ->
+                    sendSilentPush(device.fcmToken, mapOf("action" to "crawl_lms"))
+                }
+            }
+    }
+
     private fun sendOnce(
         userDeviceId: Long,
         fcmToken: String,
@@ -163,6 +184,7 @@ class NotificationService(
 
     companion object {
         private const val CLAIM_LEASE_MINUTES = 30L
+        private const val CRAWL_LEAD_MINUTES = 2L
         private const val DEADLINE_APPROACHING = "deadlineApproaching"
     }
 }
