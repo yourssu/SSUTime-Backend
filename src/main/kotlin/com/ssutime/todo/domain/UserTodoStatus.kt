@@ -42,7 +42,6 @@ class UserTodoStatus private constructor(
     @get:JsonProperty("isManuallyCompleted")
     @set:JsonProperty("isManuallyCompleted")
     var isManuallyCompleted: Boolean = false,
-    // Kept for existing API consumers; fixed notification times no longer use this value.
     @Column(nullable = false)
     var notifyAt: LocalDateTime,
     @Column(nullable = false)
