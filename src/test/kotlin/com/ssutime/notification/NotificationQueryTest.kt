@@ -125,13 +125,13 @@ class NotificationQueryTest
         fun `delivery slot is claimed once and stays closed after success`() {
             val date = LocalDate.of(2026, 9, 18)
             val now = LocalDateTime.of(2026, 9, 18, 18, 0)
-            assertEquals(1, deliveryRepository.insertIfAbsent(10, "deadlineApproaching", date, "group", now))
-            assertEquals(0, deliveryRepository.insertIfAbsent(10, "deadlineApproaching", date, "group", now))
+            assertEquals(1, deliveryRepository.insertIfAbsent(10, "deadlineReminder", date, "group", now))
+            assertEquals(0, deliveryRepository.insertIfAbsent(10, "deadlineReminder", date, "group", now))
             assertEquals(
                 1,
                 deliveryRepository.claim(
                     userDeviceId = 10,
-                    notificationType = "deadlineApproaching",
+                    notificationType = "deadlineReminder",
                     scheduledDate = date,
                     groupKey = "group",
                     claimToken = "claim-1",
@@ -143,7 +143,7 @@ class NotificationQueryTest
                 0,
                 deliveryRepository.claim(
                     userDeviceId = 10,
-                    notificationType = "deadlineApproaching",
+                    notificationType = "deadlineReminder",
                     scheduledDate = date,
                     groupKey = "group",
                     claimToken = "claim-2",
@@ -155,7 +155,7 @@ class NotificationQueryTest
                 false,
                 deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
                     10,
-                    "deadlineApproaching",
+                    "deadlineReminder",
                     date,
                     "group",
                     "SENT",
@@ -166,7 +166,7 @@ class NotificationQueryTest
                 true,
                 deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
                     10,
-                    "deadlineApproaching",
+                    "deadlineReminder",
                     date,
                     "group",
                     "SENT",
@@ -176,7 +176,7 @@ class NotificationQueryTest
                 0,
                 deliveryRepository.claim(
                     10,
-                    "deadlineApproaching",
+                    "deadlineReminder",
                     date,
                     "group",
                     "claim-3",

@@ -92,7 +92,7 @@ class NotificationService(
                 today.plusDays(4).atStartOfDay(),
                 cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
             ),
-            NotificationType.DEADLINE_APPROACHING,
+            NotificationType.DEADLINE_REMINDER,
         ) { today }
         // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
         sendTodoNotifications(
@@ -105,11 +105,11 @@ class NotificationService(
     }
 
     @Async("taskExecutor")
-    fun sendDeadlineReminders(now: LocalDateTime) {
+    fun sendDeadlineApproachingNotifications(now: LocalDateTime) {
         // The slot date follows the deadline so a retry after midnight reuses the same delivery slot.
         sendTodoNotifications(
             userTodoStatusRepository.findThresholdNotifications(now),
-            NotificationType.DEADLINE_REMINDER,
+            NotificationType.DEADLINE_APPROACHING,
         ) { it.dueDate.toLocalDate() }
             .forEach { userTodoStatusRepository.markNotificationSent(it.id) }
     }
@@ -210,9 +210,9 @@ class NotificationService(
         val individual: Boolean,
     ) {
         DUE_TODAY("dueToday", true),
-        DEADLINE_APPROACHING("deadlineApproaching", false),
+        DEADLINE_REMINDER("deadlineReminder", false),
         NEW_TODO("newTodo", false),
-        DEADLINE_REMINDER("deadlineReminder", true),
+        DEADLINE_APPROACHING("deadlineApproaching", true),
     }
 
     private fun sendSilentPush(

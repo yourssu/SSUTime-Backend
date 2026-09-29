@@ -43,15 +43,19 @@ class NotificationSchedulerTest {
     }
 
     @Test
-    fun `deadline reminders run every minute with Seoul local time`() {
-        val reminder = NotificationScheduler::class.java.getMethod("sendDeadlineReminders").getAnnotation(Scheduled::class.java)
-        assertEquals("0 * * * * *", reminder.cron)
-        assertEquals("Asia/Seoul", reminder.zone)
+    fun `deadline approaching notifications run every minute with Seoul local time`() {
+        val schedule =
+            NotificationScheduler::class.java
+                .getMethod(
+                    "sendDeadlineApproachingNotifications",
+                ).getAnnotation(Scheduled::class.java)
+        assertEquals("0 * * * * *", schedule.cron)
+        assertEquals("Asia/Seoul", schedule.zone)
 
         val service = mockk<NotificationService>(relaxed = true)
         val now = slot<LocalDateTime>()
-        NotificationScheduler(service).sendDeadlineReminders()
-        verify(exactly = 1) { service.sendDeadlineReminders(capture(now)) }
+        NotificationScheduler(service).sendDeadlineApproachingNotifications()
+        verify(exactly = 1) { service.sendDeadlineApproachingNotifications(capture(now)) }
         assertTrue(Duration.between(now.captured, LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs() < Duration.ofMinutes(1))
     }
 

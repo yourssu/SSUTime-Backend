@@ -28,7 +28,8 @@ class NotificationScheduler(
 
     // Deadlines are stored in Seoul local time.
     @Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")
-    fun sendDeadlineReminders() = notificationService.sendDeadlineReminders(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
+    fun sendDeadlineApproachingNotifications() =
+        notificationService.sendDeadlineApproachingNotifications(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
 }
 
 internal fun latestScheduledDate(

@@ -4,7 +4,7 @@
 - 마감 알림은 해당 정시보다 먼저 사용자에게 연결된 항목만 대상으로 한다. 5분 재시도에서도 같은 등록 시각 경계를 사용하므로 정시 이후 등록된 항목을 지난 슬롯에 추가하지 않는다. 정시에 정확히 등록된 항목도 해당 슬롯에서는 제외한다.
 - 신규 기준은 사용자에게 처음 연결된 `UserTodoStatus.createdAt`이다. 전날 18:00 이상, 당일 18:00 미만을 조회한다. 감사 시각은 JVM 로컬 시간이므로 조회 경계를 같은 시간대로 변환한다. 마감 시각은 한국 로컬 시간이다.
 - 묶음 대표는 마감 시각, 할 일 ID 오름차순으로 고른다. 신규와 마감 임박에 동시에 해당하면 각각 발송한다.
-- 정시 알림과 별개로 마감 N분 전 개별 알림(`deadlineReminder`)을 발송한다. 매분 `notifyAt`(`dueDate - notificationThresholdMinutes`, 한국 로컬 시간)이 지났고 `notificationSent = false`인 미완료 항목 중 마감이 아직 지나지 않은 항목이 대상이다. 마감이 지난 항목은 발송하지 않으므로 threshold가 0이면 이 알림은 나가지 않는다. 정시 알림과 조건이 겹치면 각각 발송한다.
+- 정시 알림과 별개로 마감 N분 전 개별 알림(`deadlineApproaching`)을 발송한다. 매분 `notifyAt`(`dueDate - notificationThresholdMinutes`, 한국 로컬 시간)이 지났고 `notificationSent = false`인 미완료 항목 중 마감이 아직 지나지 않은 항목이 대상이다. 마감이 지난 항목은 발송하지 않으므로 threshold가 0이면 이 알림은 나가지 않는다. 정시 알림과 조건이 겹치면 각각 발송한다.
 - 마감 N분 전 알림은 사용자의 모든 기기에 발송(또는 이미 발송)된 경우에만 `notificationSent = true`로 표시한다. 일부 기기가 실패하면 다음 분에 다시 시도하고, 이미 받은 기기는 발송 슬롯으로 중복을 막는다. 알림 OFF 사용자는 표시하지 않고 건너뛴다. 발송 이후 `dueDate`가 바뀌어도 다시 발송하지 않는다.
 - 시스템 알림 OFF이면 다섯 종류 모두 발송하지 않는다.
 
@@ -24,7 +24,7 @@
 
 | data | 값 |
 | --- | --- |
-| type | dueToday / deadlineApproaching / newTodo / deadlineReminder / newBoard |
+| type | dueToday / deadlineReminder / newTodo / deadlineApproaching / newBoard |
 | count | 할 일 알림의 항목 수. 1이면 상세, 2 이상이면 홈으로 이동 |
 | representative_todo_id | 마감 시각, Todo ID 오름차순으로 고른 대표 할 일 ID |
 | todo_title | 대표 할 일의 원본 제목 |
