@@ -27,7 +27,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.util.Optional
 
 class NotificationServiceTest {
@@ -39,6 +38,7 @@ class NotificationServiceTest {
     private val fcm = mockk<FcmClient>()
     private val service = NotificationService(fcm, statuses, users, devices, mockk(), mockk(), subjects, deliveries)
     private val today = LocalDate.of(2026, 9, 18)
+    private val now = LocalDateTime.of(2026, 9, 19, 23, 0)
     private val user = User(id = 1, authKey = "key", maskedStudentId = "20****01")
     private val messages = mutableListOf<Map<String, String>>()
     private val deliveredTokens = mutableListOf<String>()
@@ -54,7 +54,6 @@ class NotificationServiceTest {
             messages.add(arg<Map<String, String>>(1))
             Unit
         }
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns emptyList()
         every { statuses.findThresholdNotifications(any()) } returns emptyList()
         every { statuses.markNotificationSent(any()) } returns 1
         every { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) } returns 1
@@ -76,102 +75,19 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `morning sends each item with data for app rendering`() {
-        val cutoff =
-            today
-                .atTime(9, 0)
-                .atZone(ZoneId.of("Asia/Seoul"))
-                .withZoneSameInstant(ZoneId.systemDefault())
-                .toLocalDateTime()
-        every { statuses.findDeadlineNotifications(today.atStartOfDay(), today.plusDays(1).atStartOfDay(), cutoff) } returns
-            listOf(item(0), item(0, TodoType.QUIZ))
-        service.sendMorningNotifications(today)
-        assertEquals(listOf("ASSIGNMENT", "QUIZ"), messages.map { it["todo_type"] })
-        assertEquals(listOf("41", "42"), messages.map { it["todo_id"] })
-        assertTrue(messages.all { it["count"] == "1" && it["type"] == "dueToday" && it["action"] == "deadline_approaching" })
-    }
+    fun `deadline approaching sends each item with source data and legacy action`() {
+        every { statuses.findThresholdNotifications(now) } returns listOf(item(1))
 
-    @Test
-    fun `single lecture passes source data for client rendering`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0, TodoType.COMMONS))
-        service.sendMorningNotifications(today)
-        assertTrue(messages.all { it["todo_type"] == "COMMONS" && it["todo_title"] == "제목" })
-        assertTrue(messages.all { it["subject_name"] == "데이터사이언스" && it["due_date"] == "2026-09-18T23:59" })
-        assertTrue(messages.all { "days_until_due" !in it })
-    }
+        service.sendDeadlineApproachingNotifications(now)
 
-    @Test
-    fun `disabled user receives no morning notifications`() {
-        every { users.findById(1) } returns
-            Optional.of(User(id = 1, authKey = "key", maskedStudentId = "20****01", notificationEnabled = false))
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        service.sendMorningNotifications(today)
-        assertTrue(messages.isEmpty())
-    }
-
-    @Test
-    fun `missing subject does not abort remaining notifications`() {
-        every { subjects.findAllById(any()) } returns emptyList()
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0), item(0, TodoType.QUIZ))
-        service.sendMorningNotifications(today)
-        assertEquals(2, messages.size)
-        assertTrue(messages.all { "subject_name" !in it })
-    }
-
-    @Test
-    fun `failed device does not prevent other devices`() {
-        every { devices.findAllByUser(user) } returns
-            listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
-        // Firebase exposes no public constructor for messaging exceptions.
-        val failure =
-            FirebaseMessagingException::class.java
-                .getDeclaredConstructor(ErrorCode::class.java, String::class.java)
-                .apply { isAccessible = true }
-                .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
-        every { fcm.sendSilentPush("broken", any()) } throws failure
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        service.sendMorningNotifications(today)
-        assertEquals(listOf("token"), deliveredTokens)
-        verify(atLeast = 1) { deliveries.release(any(), any()) }
-    }
-
-    @Test
-    fun `unexpected programming error is propagated instead of treated as delivery failure`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        every { fcm.sendSilentPush(any(), any()) } throws IllegalStateException("Unexpected configuration error")
-
-        assertThrows<IllegalStateException> { service.sendMorningNotifications(today) }
-
-        verify(exactly = 0) { deliveries.markSent(any(), any()) }
-        verify(exactly = 0) { deliveries.release(any(), any()) }
-    }
-
-    @Test
-    fun `same delivery slot is not sent twice`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        every {
-            deliveries.claim(any(), "dueToday", today, "todo:41", any(), any(), any())
-        } returnsMany listOf(1, 0)
-
-        service.sendMorningNotifications(today)
-        service.sendMorningNotifications(today)
-
-        assertEquals(1, messages.size)
-        verify(exactly = 1) { deliveries.markSent(any(), any()) }
-    }
-
-    @Test
-    fun `single deadline includes actual id and original action`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        service.sendMorningNotifications(today)
         assertEquals(
             mapOf(
-                "type" to "dueToday",
+                "type" to "deadlineApproaching",
                 "count" to "1",
                 "representative_todo_id" to "41",
                 "todo_title" to "제목",
                 "todo_type" to "ASSIGNMENT",
-                "due_date" to "2026-09-18T23:59",
+                "due_date" to "2026-09-19T23:59",
                 "subject_name" to "데이터사이언스",
                 "todo_id" to "41",
                 "action" to "deadline_approaching",
@@ -181,39 +97,69 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `deadline approaching sends each item with legacy action and marks it sent`() {
-        val now = LocalDateTime.of(2026, 9, 19, 23, 0)
+    fun `deadline approaching sends items separately and marks each sent`() {
         val quiz = item(1, TodoType.QUIZ)
-        val assignment = item(1)
+        val lecture = item(1, TodoType.COMMONS)
         ReflectionTestUtils.setField(quiz, "id", 7L)
-        ReflectionTestUtils.setField(assignment, "id", 8L)
-        every { statuses.findThresholdNotifications(now) } returns listOf(quiz, assignment)
+        ReflectionTestUtils.setField(lecture, "id", 8L)
+        every { statuses.findThresholdNotifications(now) } returns listOf(quiz, lecture)
 
         service.sendDeadlineApproachingNotifications(now)
 
         assertEquals(listOf("41", "42"), messages.map { it["todo_id"] })
-        assertTrue(
-            messages.all {
-                it["type"] == "deadlineApproaching" && it["count"] == "1" && it["action"] == "deadline_approaching"
-            },
-        )
+        assertEquals(listOf("QUIZ", "COMMONS"), messages.map { it["todo_type"] })
         verify(exactly = 1) { deliveries.claim(any(), "deadlineApproaching", today.plusDays(1), "todo:41", any(), any(), any()) }
         verify(exactly = 1) { statuses.markNotificationSent(7) }
         verify(exactly = 1) { statuses.markNotificationSent(8) }
     }
 
     @Test
-    fun `deadline approaching stays unsent when a device fails so it is retried`() {
+    fun `missing subject does not abort remaining notifications`() {
+        every { subjects.findAllById(any()) } returns emptyList()
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1), item(1, TodoType.QUIZ))
+        service.sendDeadlineApproachingNotifications(now)
+        assertEquals(2, messages.size)
+        assertTrue(messages.all { "subject_name" !in it })
+    }
+
+    @Test
+    fun `failed device does not prevent other devices and leaves item unsent for retry`() {
         every { devices.findAllByUser(user) } returns
             listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
         every { fcm.sendSilentPush("broken", any()) } throws messagingFailure()
         every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
 
-        service.sendDeadlineApproachingNotifications(LocalDateTime.of(2026, 9, 19, 23, 0))
+        service.sendDeadlineApproachingNotifications(now)
 
-        assertEquals(1, messages.size)
+        assertEquals(listOf("token"), deliveredTokens)
         verify(exactly = 1) { deliveries.release(any(), any()) }
         verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `unexpected programming error is propagated instead of treated as delivery failure`() {
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+        every { fcm.sendSilentPush(any(), any()) } throws IllegalStateException("Unexpected configuration error")
+
+        assertThrows<IllegalStateException> { service.sendDeadlineApproachingNotifications(now) }
+
+        verify(exactly = 0) { deliveries.markSent(any(), any()) }
+        verify(exactly = 0) { deliveries.release(any(), any()) }
+        verify(exactly = 0) { statuses.markNotificationSent(any()) }
+    }
+
+    @Test
+    fun `same delivery slot is not sent twice`() {
+        every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
+        every {
+            deliveries.claim(any(), "deadlineApproaching", today.plusDays(1), "todo:41", any(), any(), any())
+        } returnsMany listOf(1, 0)
+
+        service.sendDeadlineApproachingNotifications(now)
+        service.sendDeadlineApproachingNotifications(now)
+
+        assertEquals(1, messages.size)
+        verify(exactly = 1) { deliveries.markSent(any(), any()) }
     }
 
     @Test
@@ -221,7 +167,7 @@ class NotificationServiceTest {
         every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
         every { deliveries.claim(any(), any(), any(), any(), any(), any(), any()) } returns 0
 
-        service.sendDeadlineApproachingNotifications(LocalDateTime.of(2026, 9, 19, 23, 0))
+        service.sendDeadlineApproachingNotifications(now)
 
         assertTrue(messages.isEmpty())
         verify(exactly = 1) { statuses.markNotificationSent(any()) }
@@ -235,7 +181,7 @@ class NotificationServiceTest {
             deliveries.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(any(), any(), any(), any(), "SENT")
         } returns false
 
-        service.sendDeadlineApproachingNotifications(LocalDateTime.of(2026, 9, 19, 23, 0))
+        service.sendDeadlineApproachingNotifications(now)
 
         assertTrue(messages.isEmpty())
         verify(exactly = 0) { statuses.markNotificationSent(any()) }
@@ -246,7 +192,7 @@ class NotificationServiceTest {
         user.notificationEnabled = false
         every { statuses.findThresholdNotifications(any()) } returns listOf(item(1))
 
-        service.sendDeadlineApproachingNotifications(LocalDateTime.of(2026, 9, 19, 23, 0))
+        service.sendDeadlineApproachingNotifications(now)
 
         assertTrue(messages.isEmpty())
         verify(exactly = 0) { statuses.markNotificationSent(any()) }
@@ -258,16 +204,9 @@ class NotificationServiceTest {
         val pending = item(1)
         every { statuses.findThresholdNotifications(any()) } returns listOf(pending)
 
-        service.sendDeadlineApproachingNotifications(LocalDateTime.of(2026, 9, 19, 23, 0))
+        service.sendDeadlineApproachingNotifications(now)
 
         verify(exactly = 1) { statuses.markNotificationSent(pending.id) }
-    }
-
-    @Test
-    fun `fixed time notifications do not mark threshold notifications sent`() {
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        service.sendMorningNotifications(today)
-        verify(exactly = 0) { statuses.markNotificationSent(any()) }
     }
 
     private fun messagingFailure(): FirebaseMessagingException =

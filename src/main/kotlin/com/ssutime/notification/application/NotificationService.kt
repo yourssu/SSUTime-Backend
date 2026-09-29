@@ -11,8 +11,6 @@ import com.ssutime.notification.infrastructure.BoardRepository
 import com.ssutime.notification.infrastructure.FcmClient
 import com.ssutime.notification.infrastructure.NotificationDeliveryRepository
 import com.ssutime.subject.infrastructure.SubjectRepository
-import com.ssutime.todo.domain.Todo
-import com.ssutime.todo.domain.UserTodoStatus
 import com.ssutime.todo.infrastructure.UserTodoStatusRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
@@ -23,7 +21,6 @@ import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.util.UUID
 
 @Service
@@ -71,36 +68,9 @@ class NotificationService(
     }
 
     @Async("taskExecutor")
-    fun sendMorningNotifications(today: LocalDate) {
-        val cutoff = today.atTime(9, 0).atZone(ZoneId.of("Asia/Seoul"))
-        sendTodoNotifications(
-            userTodoStatusRepository.findDeadlineNotifications(
-                today.atStartOfDay(),
-                today.plusDays(1).atStartOfDay(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.DUE_TODAY,
-        ) { today }
-    }
-
-    @Async("taskExecutor")
     fun sendDeadlineApproachingNotifications(now: LocalDateTime) {
-        // The slot date follows the deadline so a retry after midnight reuses the same delivery slot.
-        sendTodoNotifications(
-            userTodoStatusRepository.findThresholdNotifications(now),
-            NotificationType.DEADLINE_APPROACHING,
-        ) { it.dueDate.toLocalDate() }
-            .forEach { userTodoStatusRepository.markNotificationSent(it.id) }
-    }
-
-    /** Returns the items delivered to every device of their user; items of disabled users are not included. */
-    private fun sendTodoNotifications(
-        pending: List<UserTodoStatus>,
-        type: NotificationType,
-        scheduledDate: (Todo) -> LocalDate,
-    ): List<UserTodoStatus> {
-        if (pending.isEmpty()) return emptyList()
-        val delivered = mutableListOf<UserTodoStatus>()
+        val pending = userTodoStatusRepository.findThresholdNotifications(now)
+        if (pending.isEmpty()) return
         val subjectNames = subjectRepository.findAllById(pending.map { it.todo.subjectId }.distinct()).associate { it.id to it.name }
         pending.groupBy { it.userId }.forEach { (userId, items) ->
             val user = userRepository.findById(userId).orElse(null) ?: return@forEach
@@ -110,7 +80,7 @@ class NotificationService(
                 val todo = status.todo
                 val data =
                     buildMap {
-                        put("type", type.wireName)
+                        put("type", DEADLINE_APPROACHING)
                         put("count", "1")
                         put("representative_todo_id", todo.id.toString())
                         put("todo_title", todo.title)
@@ -121,39 +91,38 @@ class NotificationService(
                         // Existing clients dispatch deadline messages using action + todo_id.
                         put("action", "deadline_approaching")
                     }
+                // The slot date follows the deadline so a retry after midnight reuses the same delivery slot.
                 val sentToAllDevices =
                     devices
                         .map { device ->
                             sendOnce(
                                 userDeviceId = device.id,
                                 fcmToken = device.fcmToken,
-                                type = type,
-                                scheduledDate = scheduledDate(todo),
+                                scheduledDate = todo.dueDate.toLocalDate(),
                                 groupKey = "todo:${todo.id}",
                                 data = data,
                             )
                         }.all { it }
-                if (sentToAllDevices) delivered += status
+                // Items stay unsent while any device fails so the next run retries them.
+                if (sentToAllDevices) userTodoStatusRepository.markNotificationSent(status.id)
             }
         }
-        return delivered
     }
 
     private fun sendOnce(
         userDeviceId: Long,
         fcmToken: String,
-        type: NotificationType,
         scheduledDate: LocalDate,
         groupKey: String,
         data: Map<String, String>,
     ): Boolean {
         val now = LocalDateTime.now()
-        notificationDeliveryRepository.insertIfAbsent(userDeviceId, type.wireName, scheduledDate, groupKey, now)
+        notificationDeliveryRepository.insertIfAbsent(userDeviceId, DEADLINE_APPROACHING, scheduledDate, groupKey, now)
         val claimToken = UUID.randomUUID().toString()
         val claimed =
             notificationDeliveryRepository.claim(
                 userDeviceId = userDeviceId,
-                notificationType = type.wireName,
+                notificationType = DEADLINE_APPROACHING,
                 scheduledDate = scheduledDate,
                 groupKey = groupKey,
                 claimToken = claimToken,
@@ -164,7 +133,7 @@ class NotificationService(
         if (claimed == 0) {
             return notificationDeliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
                 userDeviceId,
-                type.wireName,
+                DEADLINE_APPROACHING,
                 scheduledDate,
                 groupKey,
                 "SENT",
@@ -177,13 +146,6 @@ class NotificationService(
         }
         notificationDeliveryRepository.release(claimToken, LocalDateTime.now())
         return false
-    }
-
-    private enum class NotificationType(
-        val wireName: String,
-    ) {
-        DUE_TODAY("dueToday"),
-        DEADLINE_APPROACHING("deadlineApproaching"),
     }
 
     private fun sendSilentPush(
@@ -201,5 +163,6 @@ class NotificationService(
 
     companion object {
         private const val CLAIM_LEASE_MINUTES = 30L
+        private const val DEADLINE_APPROACHING = "deadlineApproaching"
     }
 }

@@ -62,7 +62,7 @@ class AuthController(
     @GetMapping("/notification-settings")
     @Operation(
         summary = "알림 설정 조회",
-        description = "시스템 알림 설정을 조회합니다. 당일 마감 알림은 한국 시간 09시, 마감 N분 전 알림은 notificationThresholdMinutes 기준, 게시판 신설 알림은 즉시 발송합니다.",
+        description = "시스템 알림 설정을 조회합니다. 마감 N분 전 알림은 notificationThresholdMinutes 기준, 게시판 신설 알림은 즉시 발송합니다.",
     )
     fun getNotificationSettings(
         @Parameter(hidden = true)
@@ -72,7 +72,7 @@ class AuthController(
     @PutMapping("/notification-settings")
     @Operation(
         summary = "알림 설정 변경",
-        description = "시스템 알림 사용 여부와 마감 N분 전 알림 시간을 변경합니다. 사용자 할 일의 notifyAt은 dueDate에서 설정 시간을 빼서 계산합니다. 정시 알림은 이 값과 무관하게 발송합니다.",
+        description = "시스템 알림 사용 여부와 마감 N분 전 알림 시간을 변경합니다. 사용자 할 일의 notifyAt은 dueDate에서 설정 시간을 빼서 계산합니다.",
     )
     fun updateNotificationSettings(
         @Parameter(hidden = true)
