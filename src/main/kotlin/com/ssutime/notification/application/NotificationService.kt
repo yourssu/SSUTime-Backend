@@ -84,19 +84,6 @@ class NotificationService(
     }
 
     @Async("taskExecutor")
-    fun sendEveningNotifications(today: LocalDate) {
-        val cutoff = today.atTime(18, 0).atZone(ZoneId.of("Asia/Seoul"))
-        // createdAt is audited in the JVM time zone; deadlines use Seoul local time.
-        sendTodoNotifications(
-            userTodoStatusRepository.findNewNotifications(
-                cutoff.minusDays(1).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-                cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-            ),
-            NotificationType.NEW_TODO,
-        ) { today }
-    }
-
-    @Async("taskExecutor")
     fun sendDeadlineApproachingNotifications(now: LocalDateTime) {
         // The slot date follows the deadline so a retry after midnight reuses the same delivery slot.
         sendTodoNotifications(
@@ -119,25 +106,20 @@ class NotificationService(
             val user = userRepository.findById(userId).orElse(null) ?: return@forEach
             if (!user.notificationEnabled) return@forEach
             val devices = userDeviceRepository.findAllByUser(user)
-            val groups = if (type.individual) items.map { listOf(it) } else listOf(items)
-            groups.forEach { group ->
-                val first = group.minWith(compareBy({ it.todo.dueDate }, { it.todo.id })).todo
-                val single = group.size == 1
-                val groupKey = if (type.individual) "todo:${first.id}" else "group"
+            items.forEach { status ->
+                val todo = status.todo
                 val data =
                     buildMap {
                         put("type", type.wireName)
-                        put("count", group.size.toString())
-                        put("representative_todo_id", first.id.toString())
-                        put("todo_title", first.title)
-                        put("todo_type", first.type.toTodoType().name)
-                        put("due_date", first.dueDate.toString())
-                        subjectNames[first.subjectId]?.takeIf { it.isNotBlank() }?.let { put("subject_name", it) }
-                        if (single) {
-                            put("todo_id", first.id.toString())
-                            // Existing clients dispatch single deadline messages using action + todo_id.
-                            if (type != NotificationType.NEW_TODO) put("action", "deadline_approaching")
-                        }
+                        put("count", "1")
+                        put("representative_todo_id", todo.id.toString())
+                        put("todo_title", todo.title)
+                        put("todo_type", todo.type.toTodoType().name)
+                        put("due_date", todo.dueDate.toString())
+                        subjectNames[todo.subjectId]?.takeIf { it.isNotBlank() }?.let { put("subject_name", it) }
+                        put("todo_id", todo.id.toString())
+                        // Existing clients dispatch deadline messages using action + todo_id.
+                        put("action", "deadline_approaching")
                     }
                 val sentToAllDevices =
                     devices
@@ -146,12 +128,12 @@ class NotificationService(
                                 userDeviceId = device.id,
                                 fcmToken = device.fcmToken,
                                 type = type,
-                                scheduledDate = scheduledDate(first),
-                                groupKey = groupKey,
+                                scheduledDate = scheduledDate(todo),
+                                groupKey = "todo:${todo.id}",
                                 data = data,
                             )
                         }.all { it }
-                if (sentToAllDevices) delivered += group
+                if (sentToAllDevices) delivered += status
             }
         }
         return delivered
@@ -199,11 +181,9 @@ class NotificationService(
 
     private enum class NotificationType(
         val wireName: String,
-        val individual: Boolean,
     ) {
-        DUE_TODAY("dueToday", true),
-        NEW_TODO("newTodo", false),
-        DEADLINE_APPROACHING("deadlineApproaching", true),
+        DUE_TODAY("dueToday"),
+        DEADLINE_APPROACHING("deadlineApproaching"),
     }
 
     private fun sendSilentPush(

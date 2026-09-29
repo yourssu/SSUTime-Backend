@@ -16,14 +16,10 @@ class NotificationScheduler(
     @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     fun sendMorningNotifications() = notificationService.sendMorningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
 
-    @Scheduled(cron = "0 0 18 * * *", zone = "Asia/Seoul")
-    fun sendEveningNotifications() = notificationService.sendEveningNotifications(LocalDate.now(ZoneId.of("Asia/Seoul")))
-
     @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Seoul")
     fun retryMissedNotifications() {
         val now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
         notificationService.sendMorningNotifications(latestScheduledDate(now, LocalTime.of(9, 0)))
-        notificationService.sendEveningNotifications(latestScheduledDate(now, LocalTime.of(18, 0)))
     }
 
     // Deadlines are stored in Seoul local time.

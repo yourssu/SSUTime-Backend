@@ -41,6 +41,7 @@ class NotificationServiceTest {
     private val today = LocalDate.of(2026, 9, 18)
     private val user = User(id = 1, authKey = "key", maskedStudentId = "20****01")
     private val messages = mutableListOf<Map<String, String>>()
+    private val deliveredTokens = mutableListOf<String>()
     private var nextTodoId = 40L
 
     @BeforeEach
@@ -49,11 +50,11 @@ class NotificationServiceTest {
         every { devices.findAllByUser(user) } returns listOf(UserDevice.create(user, "token"))
         every { subjects.findAllById(any()) } returns listOf(Subject(10, 100, "데이터사이언스", "2026-2"))
         every { fcm.sendSilentPush(any(), any()) } answers {
+            deliveredTokens.add(arg<String>(0))
             messages.add(arg<Map<String, String>>(1))
             Unit
         }
         every { statuses.findDeadlineNotifications(any(), any(), any()) } returns emptyList()
-        every { statuses.findNewNotifications(any(), any()) } returns emptyList()
         every { statuses.findThresholdNotifications(any()) } returns emptyList()
         every { statuses.markNotificationSent(any()) } returns 1
         every { deliveries.insertIfAbsent(any(), any(), any(), any(), any()) } returns 1
@@ -75,21 +76,6 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `evening sends only the new todo group with earliest representative`() {
-        val items = listOf(item(3), item(1, TodoType.QUIZ), item(2))
-        val cutoff = today.atTime(18, 0).atZone(ZoneId.of("Asia/Seoul"))
-        val start = cutoff.minusDays(1).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-        val end = cutoff.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns items
-        every { statuses.findNewNotifications(start, end) } returns items
-        service.sendEveningNotifications(today)
-        assertEquals(listOf("newTodo"), messages.map { it["type"] })
-        verify(exactly = 0) { statuses.findDeadlineNotifications(any(), any(), any()) }
-        assertTrue(messages.all { it["count"] == "3" && it["representative_todo_id"] == "42" && it["todo_type"] == "QUIZ" })
-        assertTrue(messages.all { "todo_id" !in it && "action" !in it && "destination" !in it && "body" !in it && "title" !in it })
-    }
-
-    @Test
     fun `morning sends each item with data for app rendering`() {
         val cutoff =
             today
@@ -107,21 +93,19 @@ class NotificationServiceTest {
 
     @Test
     fun `single lecture passes source data for client rendering`() {
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(2, TodoType.COMMONS))
-        service.sendEveningNotifications(today)
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0, TodoType.COMMONS))
+        service.sendMorningNotifications(today)
         assertTrue(messages.all { it["todo_type"] == "COMMONS" && it["todo_title"] == "제목" })
-        assertTrue(messages.all { it["subject_name"] == "데이터사이언스" && it["due_date"] == "2026-09-20T23:59" })
+        assertTrue(messages.all { it["subject_name"] == "데이터사이언스" && it["due_date"] == "2026-09-18T23:59" })
         assertTrue(messages.all { "days_until_due" !in it })
     }
 
     @Test
-    fun `disabled user receives neither morning nor evening notifications`() {
+    fun `disabled user receives no morning notifications`() {
         every { users.findById(1) } returns
             Optional.of(User(id = 1, authKey = "key", maskedStudentId = "20****01", notificationEnabled = false))
-        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(1))
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
         service.sendMorningNotifications(today)
-        service.sendEveningNotifications(today)
         assertTrue(messages.isEmpty())
     }
 
@@ -135,7 +119,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    fun `failed device does not prevent other devices or notification types`() {
+    fun `failed device does not prevent other devices`() {
         every { devices.findAllByUser(user) } returns
             listOf(UserDevice.create(user, "broken"), UserDevice.create(user, "token"))
         // Firebase exposes no public constructor for messaging exceptions.
@@ -146,10 +130,8 @@ class NotificationServiceTest {
                 .newInstance(ErrorCode.UNAVAILABLE, "FCM unavailable")
         every { fcm.sendSilentPush("broken", any()) } throws failure
         every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
         service.sendMorningNotifications(today)
-        service.sendEveningNotifications(today)
-        assertEquals(listOf("dueToday", "newTodo"), messages.map { it["type"] })
+        assertEquals(listOf("token"), deliveredTokens)
         verify(atLeast = 1) { deliveries.release(any(), any()) }
     }
 
@@ -166,13 +148,13 @@ class NotificationServiceTest {
 
     @Test
     fun `same delivery slot is not sent twice`() {
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(item(1))
+        every { statuses.findDeadlineNotifications(any(), any(), any()) } returns listOf(item(0))
         every {
-            deliveries.claim(any(), "newTodo", today, "group", any(), any(), any())
+            deliveries.claim(any(), "dueToday", today, "todo:41", any(), any(), any())
         } returnsMany listOf(1, 0)
 
-        service.sendEveningNotifications(today)
-        service.sendEveningNotifications(today)
+        service.sendMorningNotifications(today)
+        service.sendMorningNotifications(today)
 
         assertEquals(1, messages.size)
         verify(exactly = 1) { deliveries.markSent(any(), any()) }
@@ -196,25 +178,6 @@ class NotificationServiceTest {
             ),
             messages.single(),
         )
-    }
-
-    @Test
-    fun `new todo uses actual type and ties are resolved by todo id`() {
-        val assignment = item(1)
-        val quiz = item(1, TodoType.QUIZ)
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(quiz, assignment)
-        service.sendEveningNotifications(today)
-        assertEquals("41", messages.single()["representative_todo_id"])
-        assertEquals("2", messages.single()["count"])
-        assertEquals("ASSIGNMENT", messages.single()["todo_type"])
-
-        every { statuses.findNewNotifications(any(), any()) } returns listOf(quiz)
-        service.sendEveningNotifications(today)
-        assertEquals("newTodo", messages.last()["type"])
-        assertEquals("1", messages.last()["count"])
-        assertEquals("42", messages.last()["todo_id"])
-        assertEquals("QUIZ", messages.last()["todo_type"])
-        assertTrue("action" !in messages.last())
     }
 
     @Test

@@ -73,27 +73,6 @@ class NotificationQueryTest
         }
 
         @Test
-        fun `new collection window includes previous 18 and excludes current 18`() {
-            val end = LocalDateTime.of(2026, 9, 18, 18, 0)
-            val start = end.minusDays(1)
-            val included = status(end.plusDays(1))
-            val excluded = status(end.plusDays(2))
-            entityManager.flush()
-            entityManager.entityManager
-                .createQuery("UPDATE UserTodoStatus u SET u.createdAt = :time WHERE u.id = :id")
-                .setParameter("time", start)
-                .setParameter("id", included.id)
-                .executeUpdate()
-            entityManager.entityManager
-                .createQuery("UPDATE UserTodoStatus u SET u.createdAt = :time WHERE u.id = :id")
-                .setParameter("time", end)
-                .setParameter("id", excluded.id)
-                .executeUpdate()
-            entityManager.clear()
-            assertEquals(listOf(included.id), repository.findNewNotifications(start, end).map { it.id })
-        }
-
-        @Test
         fun `threshold query includes due items and excludes past due, sent, completed and future items`() {
             val now = LocalDateTime.of(2026, 9, 18, 14, 0)
             val included = status(now.plusMinutes(30))
@@ -125,15 +104,15 @@ class NotificationQueryTest
         fun `delivery slot is claimed once and stays closed after success`() {
             val date = LocalDate.of(2026, 9, 18)
             val now = LocalDateTime.of(2026, 9, 18, 18, 0)
-            assertEquals(1, deliveryRepository.insertIfAbsent(10, "newTodo", date, "group", now))
-            assertEquals(0, deliveryRepository.insertIfAbsent(10, "newTodo", date, "group", now))
+            assertEquals(1, deliveryRepository.insertIfAbsent(10, "dueToday", date, "todo:42", now))
+            assertEquals(0, deliveryRepository.insertIfAbsent(10, "dueToday", date, "todo:42", now))
             assertEquals(
                 1,
                 deliveryRepository.claim(
                     userDeviceId = 10,
-                    notificationType = "newTodo",
+                    notificationType = "dueToday",
                     scheduledDate = date,
-                    groupKey = "group",
+                    groupKey = "todo:42",
                     claimToken = "claim-1",
                     now = now,
                     expiredBefore = now.minusMinutes(30),
@@ -143,9 +122,9 @@ class NotificationQueryTest
                 0,
                 deliveryRepository.claim(
                     userDeviceId = 10,
-                    notificationType = "newTodo",
+                    notificationType = "dueToday",
                     scheduledDate = date,
-                    groupKey = "group",
+                    groupKey = "todo:42",
                     claimToken = "claim-2",
                     now = now,
                     expiredBefore = now.minusMinutes(30),
@@ -155,9 +134,9 @@ class NotificationQueryTest
                 false,
                 deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
                     10,
-                    "newTodo",
+                    "dueToday",
                     date,
-                    "group",
+                    "todo:42",
                     "SENT",
                 ),
             )
@@ -166,9 +145,9 @@ class NotificationQueryTest
                 true,
                 deliveryRepository.existsByUserDeviceIdAndNotificationTypeAndScheduledDateAndGroupKeyAndStatus(
                     10,
-                    "newTodo",
+                    "dueToday",
                     date,
-                    "group",
+                    "todo:42",
                     "SENT",
                 ),
             )
@@ -176,9 +155,9 @@ class NotificationQueryTest
                 0,
                 deliveryRepository.claim(
                     10,
-                    "newTodo",
+                    "dueToday",
                     date,
-                    "group",
+                    "todo:42",
                     "claim-3",
                     now.plusHours(1),
                     now.plusMinutes(30),
