@@ -25,7 +25,7 @@ class NotificationSchedulerTest {
 
         val service = mockk<NotificationService>(relaxed = true)
         val now = slot<LocalDateTime>()
-        NotificationScheduler(service).sendDeadlineApproachingNotifications()
+        NotificationScheduler(service, mockk(), mockk(), mockk(), mockk()).sendDeadlineApproachingNotifications()
         verify(exactly = 1) { service.sendDeadlineApproachingNotifications(capture(now)) }
         assertTrue(Duration.between(now.captured, LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs() < Duration.ofMinutes(1))
     }
@@ -41,7 +41,7 @@ class NotificationSchedulerTest {
 
         val service = mockk<NotificationService>(relaxed = true)
         val now = slot<LocalDateTime>()
-        NotificationScheduler(service).triggerCrawlBeforeDeadlineApproaching()
+        NotificationScheduler(service, mockk(), mockk(), mockk(), mockk()).triggerCrawlBeforeDeadlineApproaching()
         verify(exactly = 1) { service.triggerCrawlBeforeDeadlineApproaching(capture(now)) }
         assertTrue(Duration.between(now.captured, LocalDateTime.now(ZoneId.of("Asia/Seoul"))).abs() < Duration.ofMinutes(1))
     }

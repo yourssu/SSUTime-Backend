@@ -19,6 +19,15 @@ interface UserTodoStatusRepository : JpaRepository<UserTodoStatus, Long> {
     fun findAllByUserId(userId: Long): List<UserTodoStatus>
 
     @Query(
+        "SELECT u FROM UserTodoStatus u JOIN FETCH u.todo " +
+            "WHERE u.createdAt >= :start AND u.createdAt < :end AND u.isCompleted = false ORDER BY u.createdAt, u.id",
+    )
+    fun findNewTodos(
+        start: LocalDateTime,
+        end: LocalDateTime,
+    ): List<UserTodoStatus>
+
+    @Query(
         "SELECT u FROM UserTodoStatus u JOIN FETCH u.todo t " +
             "WHERE u.notifyAt <= :now AND u.notificationSent = false AND u.isCompleted = false AND t.dueDate > :now",
     )
